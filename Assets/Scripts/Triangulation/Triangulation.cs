@@ -47,7 +47,7 @@ public class Triangulation : MonoBehaviour
 		DestroyImmediate(temp); 
 
 
-		stopAll = true;
+		stopAll = false;
 	}
 	void OnDrawGizmosSelected( ) 
 	{
@@ -92,7 +92,7 @@ public class Triangulation : MonoBehaviour
 			if(drawTriangles)
 			{	
 
-				tt.DrawDebug();
+				tt.DrawDebugSimple();
 				foreach(Vector3 v in tt.getVertexMiddle())
 				{
 				//	points.Add(v);
@@ -114,7 +114,7 @@ public class Triangulation : MonoBehaviour
 					Debug.DrawLine(ll[0].MidPoint(), tt.GetCenterTriangle(),Color.red);
 					//Debug.Log("Drawing Red Line at: " + ll[0].MidPoint() + " " + tt.GetCenterTriangle());
 				}
-				else if(ll.Length > 2)
+				else if(ll.Length > 1)
 				{
 					for(int i = 0; i<ll.Length; i++)
 					{
@@ -437,78 +437,8 @@ public class Triangulation : MonoBehaviour
 		triangulation.triangles = triangles;
 
 
-		List<Vector3> verts = new List<Vector3> ();
-		foreach (Line L in lines) {
-			if( !verts.Contains(L.vertex[0]) )
-				verts.Add(L.vertex[0]);
-			if( !verts.Contains(L.vertex[1]) )
-				verts.Add(L.vertex[1]);
-		}
-		for (int i = 0; i < 100; i++)
-			G [i] = new List<int> ();
-		foreach (Line L in lines) {
-			//int indU = FindIndexManual( verts, L.vertex[0] );
-			int indU = verts.IndexOf(L.vertex[0]);
-			int indV = FindIndexManual( verts, L.vertex[1] );
-			G[indU].Add(indV);
-			G[indV].Add(indU);
-		}
-		int total = 0;
-		for (int i = 0; i < 100; i++) {
-			if( G[i].Count == 0 ) break;
-			total += G[i].Count;
-		}
-		Debug.Log ("Total: " + total);
-		Debug.Log ("Lines: " + lines.Count);
-		colorG = new int[110];
-		visitedG = new bool[110];
-		for (int i = 0; i < 100; i++) {
-			colorG [i] = -1;
-			visitedG[i] = false;
-		}
-		TriColor ( 0 );
-		//DrawVertices ( temp );
-//		Debug.Log (verts.Count);
-//		for (int i = 0; i < verts.Count; i++) {
-//			GameObject inter = GameObject.CreatePrimitive (PrimitiveType.Sphere);
-//			inter.transform.position = verts[i];
-//			if( colorG[i] == red )
-//				inter.transform.renderer.material.color = Color.red;
-//			else if( colorG[i] == green )
-//				inter.transform.renderer.material.color = Color.green;
-//			else
-//				inter.transform.renderer.material.color = Color.blue;
-//			inter.transform.localScale = new Vector3 (0.3f, 0.3f, 0.3f); 
-//			inter.transform.parent = temp.transform;
-//		}
-		int numRed = 0, numGreen = 0, numBlue = 0;
-		for (int i = 0; i < verts.Count; i++) {
-			if( colorG[i] == red ) numRed++;
-			else if( colorG[i] == green ) numGreen++;
-			else numBlue++;
-		}
-		int minColor;
-		if (numRed <= numGreen && numRed <= numBlue)
-			minColor = red;
-		else if (numGreen <= numRed && numGreen <= numBlue)
-			minColor = green;
-		else
-			minColor = blue;
-		for (int i = 0; i < verts.Count; i++) {
-			//if( colorG[i] != minColor )
-			//	continue;
-			GameObject inter = GameObject.CreatePrimitive (PrimitiveType.Sphere);
-			inter.transform.position = verts[i];
-			inter.transform.localScale = new Vector3 (0.3f, 0.3f, 0.3f); 
-			if( colorG[i] == minColor ){
-				inter.transform.renderer.material.color = Color.red;
-				inter.transform.localScale = new Vector3 (0.7f, 0.7f, 0.7f); 
-			}
-			else
-				inter.transform.renderer.material.color = Color.green;
 
-			inter.transform.parent = temp.transform;
-		}
+
 	}
 
 	void TriColor( int source ){

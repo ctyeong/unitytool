@@ -66,6 +66,15 @@ public class Triangle
 		}
 
 	}
+	public void DrawDebugSimple()
+	{
+		//Add get lines method. 
+		foreach(Line l in getLines())
+		{
+			Debug.DrawLine(l.vertex[0],l.vertex[1],Color.gray); 
+		}
+		
+	}
 	public Vector3[] getVertexMiddle()
 	{
 		Vector3[] toReturn = new Vector3[3];
