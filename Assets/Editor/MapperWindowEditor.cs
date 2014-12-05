@@ -42,7 +42,10 @@ namespace EditorArea {
 		private long stepInTicks = 0L, playTime = 0L;
 		private static bool simulated = false, playing = false;
 		private Mapper mapper;
-		private RRTKDTreeCombat rrt = new RRTKDTreeCombat ();
+		//private RRTKDTreeCombat rrt = new RRTKDTreeCombat ();
+	//	private RRTKDTree rrt = new RRTKDTree ();
+		private RRTKDTreeConnect rrt = new RRTKDTreeConnect ();
+
 		private RRTKDTree oldRrt = new RRTKDTree ();
 		private MapperEditorDrawer drawer;
 		private DateTime previous = DateTime.Now;
@@ -259,7 +262,8 @@ namespace EditorArea {
 				GameObject[] hps = GameObject.FindGameObjectsWithTag("HealthPack");
 				HealthPack[] packs = new HealthPack[hps.Length];
 				for (int i = 0; i < hps.Length; i++) {
-					packs[i] = hps[i].GetComponent<HealthPack>();
+					packs[i] = GameObject.Find("Visit"+i).GetComponent<HealthPack>(); //태영 
+					//packs[i] = hps[i].GetComponent<HealthPack>();
 					packs[i].posX = (int)((packs[i].transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
 					packs[i].posZ = (int)((packs[i].transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
 				}
@@ -270,7 +274,7 @@ namespace EditorArea {
 				rrt.tileSizeZ = SpaceState.Editor.tileSize.y;
 				rrt.enemies = SpaceState.Editor.enemies;
 				rrt.packs = packs;
-				rrt.simulateCombat = simulateCombat;
+			//	rrt.simulateCombat = simulateCombat;
 
 				int seed = randomSeed;
 				if (randomSeed != -1)
@@ -282,6 +286,10 @@ namespace EditorArea {
 				}
 
 				List<Node> nodes = null;
+
+				System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+				sw.Start();
+
 				for (int it = 0; it < iterations; it++) {
 
 					// Make a copy of the original map
@@ -308,7 +316,7 @@ namespace EditorArea {
 					}
 					// We have this try/catch block here to account for the issue that we don't solve when we find a path when t is near the limit
 					try {
-						nodes = rrt.Compute (startX, startY, endX, endY, attemps, stepSize, playerMaxHp, playerSpeed, playerDPS, fullMap, smoothPath);
+						nodes = rrt.Compute (startX, startY, endX, endY, attemps, playerSpeed, fullMap, smoothPath);
 						// Did we found a path?
 						if (nodes.Count > 0) {
 							paths.Add (new Path (nodes));
@@ -316,9 +324,9 @@ namespace EditorArea {
 							paths.Last ().color = new Color (UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f));
 						}
 						// Grab the death list
-						foreach (List<Node> deathNodes in rrt.deathPaths) {
-							deaths.Add(new Path(deathNodes));
-						}
+					//	foreach (List<Node> deathNodes in rrt.deathPaths) {
+					//		deaths.Add(new Path(deathNodes));
+					//	}
 					} catch (Exception e) {
 						Debug.LogWarning("Skip errored calculated path");
 						Debug.LogException(e);
@@ -328,6 +336,11 @@ namespace EditorArea {
 						// The other case is yet unkown, but it's a conicidence by trying to insert a node in the tree that already exists (really rare cases)
 					}
 				}
+
+				sw.Stop();
+				Debug.Log ( "Elapsed time : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
+				           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
+
 				// Set the map to be drawn
 				drawer.fullMap = fullMap;
 				ComputeHeatMap (paths, deaths);
@@ -360,6 +373,24 @@ namespace EditorArea {
 
 				// Debug.Log(summary);
 			}
+
+			//태영 코드 
+			EditorGUILayout.LabelField ("set by Ty");
+			if (GUILayout.Button ("Export Coordinates X,Y,T")) {
+				List<Path> all = new List<Path>();
+				all.AddRange(paths);
+				all.AddRange(deaths);
+				if( SpaceState.Editor.enemies.Length > 0 ){
+				PathBulk.SaveXYT2File ("ms" + SpaceState.Editor.enemies[0].moveSpeed 
+				                       + "rs" + SpaceState.Editor.enemies[0].rotationSpeed 
+				                       + "fd" + SpaceState.Editor.enemies[0].fovDistance + "_xyt.txt", all); // 플레이어 이동 좌표들 출력!
+				}
+				else
+					PathBulk.SaveXYT2File ("_xyt.txt", all); // 플레이어 이동 좌표들 출력!
+
+			}
+			EditorGUILayout.LabelField ("");
+			/////
 			
 			if (GUILayout.Button ("(DEBUG) Export Paths")) {
 				List<Path> all = new List<Path>();
