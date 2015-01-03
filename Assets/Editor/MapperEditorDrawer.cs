@@ -9,7 +9,7 @@ namespace EditorArea {
 	public class MapperEditorDrawer : MonoBehaviour {
 		
 		// Options
-		public bool drawMap = true, drawNeverSeen = false, drawHeatMap = true, drawPath = false, editGrid = false, drawFoVOnly = false, drawCombatLines = false;
+		public bool drawMap = true, drawNeverSeen = false, drawHeatMap = true, drawPath = false, editGrid = false, drawFoVOnly = false, drawCombatLines = false, drawByTimeSlice = true;
 		
 		// Caller must set these up
 		public Cell[][][] fullMap;
@@ -137,6 +137,10 @@ namespace EditorArea {
 				foreach (KeyValuePair<Path, bool> kv in paths)
 				if (kv.Value) {
 					foreach (Node n in kv.Key.points) {
+
+						if( drawByTimeSlice && n.t > timeSlice )
+							continue;
+
 						Gizmos.color = kv.Key.color;
 						if (n.parent != null) {
 							Gizmos.DrawLine (new Vector3

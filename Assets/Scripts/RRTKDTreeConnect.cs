@@ -135,7 +135,7 @@
 
 
 
-		public List<Node> Compute (int startX, int startY, int endX, int endY, int attemps, float speed, Cell[][][] matrix, bool smooth = false) 
+		public List<List<Node>> Compute (int startX, int startY, int endX, int endY, int attemps, float speed, Cell[][][] matrix, bool smooth = false, bool allBranches = true ) 
 			{
 			// Initialization
 			tree = new KDTree (3);
@@ -188,6 +188,8 @@
 			System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
 			sw.Start();
 
+			List<List<Node>> pathResults = new List<List<Node>> ();
+
 			//RRT algo
 			for (int i = 0; i <= attemps; i++) {
 				//Debug.Log( "i : " + i );
@@ -238,8 +240,9 @@
 						Debug.Log ( "Elapsed time : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
 						           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
 
-						return ReturnPath (newNode, smooth);
-							
+						//return ReturnPath (newNode, smooth);
+						pathResults.Add( ReturnPath (newNode, smooth) );
+						return pathResults;	
 					}
 				}
 				else if ( i == attemps && advancedNode != null ){
@@ -249,16 +252,21 @@
 					Debug.Log ( "Elapsed time : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
 					           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
 
-					return ReturnPath (advancedNode, smooth);
-
+				//	return ReturnPath (advancedNode, smooth);
+					pathResults.Add( ReturnPath (advancedNode, smooth) );
+					return pathResults;
 				}
+
+				if( allBranches )
+					pathResults.Add( ReturnPath (advancedNode, smooth) );
+
 			}
 				
 			sw.Stop();
 			Debug.Log ( "Elapsed time : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
 			           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
 
-			return new List<Node> ();
+			return new List<List<Node>> ();
 		}
 		
 		// Returns the computed path by the RRT, and smooth it if that's the case

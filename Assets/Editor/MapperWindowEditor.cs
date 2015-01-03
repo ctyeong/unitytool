@@ -20,7 +20,7 @@ namespace EditorArea {
 
 		// Parameters with default values
 		public static int timeSamples = 2000, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
-		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false;
+		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, allBranches = true, drawByTimeSlice = true;
 		private static float stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10;
 		private static int randomSeed = -1;
 
@@ -236,6 +236,9 @@ namespace EditorArea {
 				}
 			}
 
+			allBranches = EditorGUILayout.Toggle ("all branches", allBranches);
+
+
 			if (GUILayout.Button ("Compute Path")) {
 				float playerSpeed = GameObject.FindGameObjectWithTag ("AI").GetComponent<Player> ().speed;
 				float playerMaxHp = GameObject.FindGameObjectWithTag ("AI").GetComponent<Player> ().maxHp;
@@ -285,7 +288,7 @@ namespace EditorArea {
 					UnityEngine.Random.seed = seed;
 				}
 
-				List<Node> nodes = null;
+				//List<Node> nodes = null;
 
 				System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
 				sw.Start();
@@ -316,12 +319,18 @@ namespace EditorArea {
 					}
 					// We have this try/catch block here to account for the issue that we don't solve when we find a path when t is near the limit
 					try {
-						nodes = rrt.Compute (startX, startY, endX, endY, attemps, playerSpeed, fullMap, smoothPath);
+						List<List<Node>> computedPaths = rrt.Compute (startX, startY, endX, endY, attemps, playerSpeed, fullMap, smoothPath, allBranches );
+
+							
 						// Did we found a path?
-						if (nodes.Count > 0) {
-							paths.Add (new Path (nodes));
-							toggleStatus.Add (paths.Last (), true);
-							paths.Last ().color = new Color (UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f));
+						if (computedPaths.Count > 0) {
+							Color c =	new Color (UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f));
+							foreach( List<Node> nodes in computedPaths ){
+								paths.Add (new Path (nodes));
+								toggleStatus.Add (paths.Last (), true);
+								paths.Last ().color = c;
+							}
+	
 						}
 						// Grab the death list
 					//	foreach (List<Node> deathNodes in rrt.deathPaths) {
@@ -437,7 +446,9 @@ namespace EditorArea {
 			drawDeathHeatMap3d = EditorGUILayout.Toggle ("--> Draw 3d death heat map", drawDeathHeatMap3d);
 			drawPath = EditorGUILayout.Toggle ("Draw path", drawPath);
 			drawCombatLines = EditorGUILayout.Toggle ("Draw combat lines", drawCombatLines);
-			
+			drawByTimeSlice = EditorGUILayout.Toggle ("Draw by Time Slice", drawByTimeSlice);
+
+
 			if (drawer != null) {
 				drawer.heatMap = null;
 				drawer.heatMap3d = null;
@@ -462,6 +473,8 @@ namespace EditorArea {
 					else
 						drawer.heatMap = heatMap;
 				}
+
+				drawer.drawByTimeSlice = drawByTimeSlice;
 			}
 			
 			EditorGUILayout.LabelField ("");
