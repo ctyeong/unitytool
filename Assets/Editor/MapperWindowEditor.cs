@@ -10,6 +10,7 @@ using Exploration;
 using Path = Common.Path;
 using Extra;
 using Objects;
+using Learning;
 
 namespace EditorArea {
 	public class MapperWindowEditor : EditorWindow {
@@ -186,19 +187,62 @@ namespace EditorArea {
 				
 				ResetAI ();
 				previous = DateTime.Now;
+				
+				Debug.Log(  System.GC.GetTotalMemory(true) );
 			} 
 			EditorGUILayout.LabelField ("");
 			
 			#endregion
+
+			// ----------------------------------
+			#region 3.5 make table R
 			
+			start = (GameObject)EditorGUILayout.ObjectField ("Start", start, typeof(GameObject), true);
+			end = (GameObject)EditorGUILayout.ObjectField ("End", end, typeof(GameObject), true);
+			
+			if (GUILayout.Button ("Try Reinforcement Learning")) {
+			
+				//Check the start and the end and get them from the editor. 
+				if (start == null) {
+					start = GameObject.Find ("Start");
+				}
+				if (end == null) {
+					end = GameObject.Find ("End");	
+				}
+
+				startX = (int)((start.transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
+				startY = (int)((start.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
+				endX = (int)((end.transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
+				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
+
+				StateManager stm = new StateManager( );
+								
+				int stateNumber = 0;
+				for( int x = 0; x < gridSize; x++ ){
+					for( int y = 0; y < gridSize; y++ ){
+						if( !fullMap[ 1 ][ x ][ y ].blocked ){
+							stm.addState( new State( x, y, stateNumber++ ) );
+						}
+					}
+				}				
+
+				stm.makeADJMatrix();
+				
+//				RLNode rlRoot = new RLNode( startX, startY, 0 );
+//				RLTree rlTree = new RLTree( rlRoot, drawer.fullMap, endX, endY, gridSize );
+//				rlTree.DFSExpand( ref rlTree.root );
+			}
+
+			#endregion
+
 			// ----------------------------------
 			
 			#region 4. Path
 			
 			EditorGUILayout.LabelField ("4. Path");
 			
-			start = (GameObject)EditorGUILayout.ObjectField ("Start", start, typeof(GameObject), true);
-			end = (GameObject)EditorGUILayout.ObjectField ("End", end, typeof(GameObject), true);
+			//start = (GameObject)EditorGUILayout.ObjectField ("Start", start, typeof(GameObject), true);
+			//end = (GameObject)EditorGUILayout.ObjectField ("End", end, typeof(GameObject), true);
 			attemps = EditorGUILayout.IntSlider ("Attempts", attemps, 1000, 100000);
 			iterations = EditorGUILayout.IntSlider ("Iterations", iterations, 1, 1500);
 			randomSeed = EditorGUILayout.IntSlider("Random Seed", randomSeed, -1, 10000);
