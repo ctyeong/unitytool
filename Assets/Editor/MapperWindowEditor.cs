@@ -16,12 +16,16 @@ namespace EditorArea {
 	public class MapperWindowEditor : EditorWindow {
 
 		// Data holders
-		private static Cell[][][] fullMap, original;
+		private Cell[][][] fullMap, original;
+		private static int[][][][][][] Q; 
+		private List<List<Node>> learnedResult = new List<List<Node>>();
+
+
 		public static List<Path> paths = new List<Path> (), deaths = new List<Path>();
 
 		// Parameters with default values
 		public static int timeSamples = 2000, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
-		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, allBranches = true, drawByTimeSlice = true;
+		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, learnedData = true, allBranches = true, drawByTimeSlice = true;
 		private static float stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10;
 		private static int randomSeed = -1;
 
@@ -195,11 +199,11 @@ namespace EditorArea {
 			#endregion
 
 			// ----------------------------------
-			#region 3.5 make table R
+			#region 3.5 make table Q
 			
 			start = (GameObject)EditorGUILayout.ObjectField ("Start", start, typeof(GameObject), true);
 			end = (GameObject)EditorGUILayout.ObjectField ("End", end, typeof(GameObject), true);
-			
+
 			if (GUILayout.Button ("Try Reinforcement Learning")) {
 			
 				//Check the start and the end and get them from the editor. 
@@ -215,22 +219,176 @@ namespace EditorArea {
 				endX = (int)((end.transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
 				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
 
-				StateManager stm = new StateManager( );
-								
-				int stateNumber = 0;
-				for( int x = 0; x < gridSize; x++ ){
-					for( int y = 0; y < gridSize; y++ ){
-						if( !fullMap[ 1 ][ x ][ y ].blocked ){
-							stm.addState( new State( x, y, stateNumber++ ) );
+				//Debug.Log( "startX : " + startX + " startY " + startY );
+
+				System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+				sw.Start();
+
+				int actionNumber = 0, nextX = 0, nextY = 0, currX, currY, t;
+				float maxQ = 0;
+				int reward, distance;
+				float GAMMA_DiscountFactor = 0.5f, TEMPERATURE, ALPHA_LearningRate = 0.2f;
+
+				//Boolean decision = false;
+				//int []directionChange = new int[5] { -1, 1, 0, 0, 0};
+				//int yi;
+				Cell currCell = null, nextCell = null;
+				Node currNode = null, nextNode = null;
+
+				//initialize Q values, if out of the map, the lowest value
+				for( int w = 0; w < original.Length; w++ ){
+					for( int ww = 0; ww < gridSize; ww++ ){
+						original[w][0][ww].qValues[ original[0][0][0].LEFT ] = float.MinValue;
+						original[w][ww][0].qValues[ original[0][0][0].DOWNWARD ] = float.MinValue;
+						original[w][gridSize-1][ww].qValues[ original[0][0][0].RIGHT ] = float.MinValue;
+						original[w][ww][gridSize-1].qValues[ original[0][0][0].UPWARD ] = float.MinValue;						
+					}					   
+				}
+
+				Cell[][] testCells = original[0];
+				List<Node> lastNodes = new List<Node>();
+
+				for( int episode = 0; episode < 100; episode++ ){
+
+					currX = startX;
+					currY = startY; // set the initial state 
+					t = 0; // initialize time
+
+
+					do{
+						//currCell = original[t][currX][currY];
+						currCell = testCells[currX][currY];
+						currNode = new Node();
+						currNode.x = currX;
+						currNode.y = currY;
+						currNode.t = t;
+						currNode.cell = currCell;
+
+						// get an action according to my policy, greedy
+						List<int> actions = currCell.SelectRandomAction4MaxReward( currX, currY );
+
+						nextX = actions[0];
+						nextY = actions[1];
+						actionNumber = actions[2];
+						nextCell = original[t+1][nextX][nextY];
+						nextNode = new Node();
+						nextNode.t = t+1;
+						nextNode.x = nextX;
+						nextNode.y = nextY;
+						nextNode.cell = nextCell;
+						nextNode.parent = currNode;
+						
+
+						// get the reward value for Reinforcement
+						if( nextCell.blocked ) //collision
+							reward = -50;
+						else if( nextCell.seen ) // collision
+							reward = -50;
+						else if( nextX == endX && nextY == endY ) // reched the goal
+							reward = 10000;
+						else //simple movement
+							reward = -1;
+
+						// update the Q-Function
+						maxQ = nextCell.getMaxQ();						
+						if( actionNumber == currCell.LEFT ) //left
+							currCell.qValues[currCell.LEFT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.LEFT] ); 
+						else if( actionNumber == currCell.RIGHT ) //right
+							currCell.qValues[currCell.RIGHT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.RIGHT ] ); 
+						else if( actionNumber == currCell.DOWNWARD ) //downward
+							currCell.qValues[currCell.DOWNWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.DOWNWARD ] );
+						else if( actionNumber == currCell.UPWARD ) //upward
+							currCell.qValues[currCell.UPWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.UPWARD ] ); 
+						else if( actionNumber == currCell.HERE )
+							currCell.qValues[currCell.HERE] +=  ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.HERE ] ); 
+
+						if( nextCell.seen || nextCell.blocked ){ //collision -> the next episode
+							//lastNodes.Add ( nextNode );
+							break;
+						}
+
+						t++;
+						currX = nextX;
+						currY = nextY;
+					}while( t+1 <= original.Length-1 );
+
+					learnedResult.Clear();
+					learnedResult.Add( rrt.ReturnPath( nextNode, false ) ); // print a learned path 
+					
+					if (learnedResult.Count > 0) {
+						Color c =	new Color (UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f));
+						foreach( List<Node> nodes in learnedResult ){
+							paths.Add (new Path (nodes));
+							toggleStatus.Add (paths.Last (), true);
+							paths.Last ().color = c;
 						}
 					}
-				}				
+						
+						//}while( !(currX == endX && currY == endY) || i < 500 ); // repeat untill arrived the end point or iterated during not enough time
 
-				stm.makeADJMatrix();
-				
-//				RLNode rlRoot = new RLNode( startX, startY, 0 );
-//				RLTree rlTree = new RLTree( rlRoot, drawer.fullMap, endX, endY, gridSize );
-//				rlTree.DFSExpand( ref rlTree.root );
+					/*
+					Debug.Log ("t when success : " + t );
+					Debug.Log ("currX : " + currX + " currY : " + currY 
+					           + " startX : " + startX + " startY : " + startY
+					           + " endX : " + endX + " endY : " + endY );
+					*/
+					//Debug.Log("start R : " + original[0][startX][startY].qRight + " L : " + original[0][startX][startY].qLeft + " D : " + original[0][startX][startY].qDownward
+					  //        + " U : " + original[0][startX][startY].qUpward + " Here : " + original[0][startX][startY].qHere );
+				}
+
+				sw.Stop();
+				Debug.Log ( "Elapsed time for RL : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
+				           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
+
+				sw.Start();
+				//make a path learned above
+				currX = startX;
+				currY = startY;
+			//	Node currNode = new Node();
+				currNode.x = currX;
+				currNode.y = currY;
+				currNode.t = 0;
+				//currNode.cell = original[0][currX][currY];
+				currNode.cell = testCells[currX][currY];
+				System.Collections.Queue nodeQueue = new System.Collections.Queue();
+				nodeQueue.Enqueue( currNode );
+				//Node nextNode = null;
+				learnedResult.Clear(); // a space for containing result paths
+				int time = 0;
+				List<int> nextXYList;
+
+				while( true ){
+				//while( nodeQueue.Count != 0 ){
+					currNode = (Node)nodeQueue.Dequeue();
+					if( currNode.t >= original.Length - 1 ){
+						lastNodes.Add( currNode );
+						break;
+					}
+					nextXYList = currNode.cell.SelectRandomAction4MaxReward( currNode.x, currNode.y );
+					if( nextXYList == null ){ // the last node
+						lastNodes.Add( currNode );
+						//continue;
+						break;
+					}
+					for( int k = 0; k < nextXYList.Count/2; k++ ){
+						nextNode = new Node();
+						nextNode.x = nextXYList[k*2]; 
+						nextNode.y = nextXYList[k*2+1];
+						nextNode.t = currNode.t + 1;
+						Debug.Log( "t: " + nextNode.t + " x: " + nextNode.x + " y: " + nextNode.y );
+						//nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
+						nextNode.cell = testCells[nextNode.x][nextNode.y];
+						nextNode.parent = currNode;
+						nodeQueue.Enqueue( nextNode ); 
+					}
+				}
+
+				foreach( Node n in lastNodes )
+					learnedResult.Add( rrt.ReturnPath( n, false ) ); // 모든 경우의 학습된 경로를 뽑기
+
+				sw.Stop();
+				Debug.Log ( "Elapsed time for making paths : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
+				           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
 			}
 
 			#endregion
@@ -281,6 +439,7 @@ namespace EditorArea {
 			}
 
 			allBranches = EditorGUILayout.Toggle ("all branches", allBranches);
+			learnedData = EditorGUILayout.Toggle ("show learned paths", learnedData);
 
 
 			if (GUILayout.Button ("Compute Path")) {
@@ -363,7 +522,12 @@ namespace EditorArea {
 					}
 					// We have this try/catch block here to account for the issue that we don't solve when we find a path when t is near the limit
 					try {
-						List<List<Node>> computedPaths = rrt.Compute (startX, startY, endX, endY, attemps, playerSpeed, fullMap, smoothPath, allBranches );
+						List<List<Node>> computedPaths;
+						if( learnedData )
+							computedPaths = learnedResult;
+
+						else
+							computedPaths = rrt.Compute (startX, startY, endX, endY, attemps, playerSpeed, fullMap, smoothPath, allBranches );
 
 							
 						// Did we found a path?

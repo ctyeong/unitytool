@@ -270,7 +270,7 @@
 		}
 		
 		// Returns the computed path by the RRT, and smooth it if that's the case
-		private List<Node> ReturnPath (Node endNode, bool smooth) {
+		public List<Node> ReturnPath (Node endNode, bool smooth) {
 			Node n = endNode;
 			List<Node> points = new List<Node> ();
 			
