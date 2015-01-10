@@ -24,9 +24,9 @@ namespace EditorArea {
 		public static List<Path> paths = new List<Path> (), deaths = new List<Path>();
 
 		// Parameters with default values
-		public static int timeSamples = 2000, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
+		public static int timeSamples = 1000, episodes = 3600, iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
 		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, learnedData = true, allBranches = true, drawByTimeSlice = true;
-		private static float stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10;
+		private static float stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.8f, ALPHA_LearningRate = 0.5f, Epsilon_for_E_Greedy = 0.5f ;
 		private static int randomSeed = -1;
 
 		// Computed parameters
@@ -199,10 +199,18 @@ namespace EditorArea {
 			#endregion
 
 			// ----------------------------------
-			#region 3.5 make table Q
+			#region 3.5 Trianing
+			EditorGUILayout.LabelField ("3.5 Training");
 			
 			start = (GameObject)EditorGUILayout.ObjectField ("Start", start, typeof(GameObject), true);
 			end = (GameObject)EditorGUILayout.ObjectField ("End", end, typeof(GameObject), true);
+
+			GAMMA_DiscountFactor = EditorGUILayout.Slider ("Discount Factor", GAMMA_DiscountFactor, 0.01f, 1f);
+			ALPHA_LearningRate = EditorGUILayout.Slider ("Learning Rate", ALPHA_LearningRate, 0.01f, 1f);
+			Epsilon_for_E_Greedy = EditorGUILayout.Slider ("Epsilon for E-Greedy", Epsilon_for_E_Greedy, 0.01f, 1f);;
+			episodes = EditorGUILayout.IntSlider ("Episodes", episodes, 1000, 10 * gridSize * gridSize );
+			iterations4Learning = EditorGUILayout.IntSlider ("Iterations", iterations4Learning, 1, 1500);
+			
 
 			if (GUILayout.Button ("Try Reinforcement Learning")) {
 			
@@ -227,13 +235,14 @@ namespace EditorArea {
 				int actionNumber = 0, nextX = 0, nextY = 0, currX, currY, t;
 				float maxQ = 0;
 				int reward, distance;
-				float GAMMA_DiscountFactor = 0.5f, TEMPERATURE, ALPHA_LearningRate = 0.2f;
+				Boolean stop = false;
+//				float GAMMA_DiscountFactor = 0.8f, TEMPERATURE, ALPHA_LearningRate = 0.5f;
 
 				//Boolean decision = false;
 				//int []directionChange = new int[5] { -1, 1, 0, 0, 0};
 				//int yi;
 				Cell currCell = null, nextCell = null;
-				Node currNode = null, nextNode = null;
+//				Node currNode = null, nextNode = null;
 
 				//initialize Q values, if out of the map, the lowest value
 				for( int w = 0; w < original.Length; w++ ){
@@ -245,111 +254,115 @@ namespace EditorArea {
 					}					   
 				}
 
-				Cell[][] testCells = original[0];
+//				Cell[][] testCells = original[0];
+//				learnedResult.Clear(); // a space for containing result paths
 				List<Node> lastNodes = new List<Node>();
-
-				for( int episode = 0; episode < 100; episode++ ){
-
-					currX = startX;
-					currY = startY; // set the initial state 
-					t = 0; // initialize time
-
-
-					do{
-						//currCell = original[t][currX][currY];
-						currCell = testCells[currX][currY];
-						currNode = new Node();
-						currNode.x = currX;
-						currNode.y = currY;
-						currNode.t = t;
-						currNode.cell = currCell;
-
-						// get an action according to my policy, greedy
-						List<int> actions = currCell.SelectRandomAction4MaxReward( currX, currY );
-
-						nextX = actions[0];
-						nextY = actions[1];
-						actionNumber = actions[2];
-						nextCell = original[t+1][nextX][nextY];
-						nextNode = new Node();
-						nextNode.t = t+1;
-						nextNode.x = nextX;
-						nextNode.y = nextY;
-						nextNode.cell = nextCell;
-						nextNode.parent = currNode;
+				for( int iteration = 0; iteration < iterations4Learning; iteration++ ){
+				
+//					for( int zz = 0; zz < original[0][0][0].qValues.Length; zz++ )
+//						Debug.Log ( iteration + " " + zz + " : " + original[100][54][24].qValues[zz] );
+					for( int episode = 0; episode < episodes; episode++ ){
+	
+						currX = startX;
+						currY = startY; // set the initial state 
+						//currY = episode % (gridSize - 1);
+						//currX = episode / (gridSize - 1); // visit all states
+						t = 0; // initialize time
 						
-
-						// get the reward value for Reinforcement
-						if( nextCell.blocked ) //collision
-							reward = -50;
-						else if( nextCell.seen ) // collision
-							reward = -50;
-						else if( nextX == endX && nextY == endY ) // reched the goal
-							reward = 10000;
-						else //simple movement
-							reward = -1;
-
-						// update the Q-Function
-						maxQ = nextCell.getMaxQ();						
-						if( actionNumber == currCell.LEFT ) //left
-							currCell.qValues[currCell.LEFT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.LEFT] ); 
-						else if( actionNumber == currCell.RIGHT ) //right
-							currCell.qValues[currCell.RIGHT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.RIGHT ] ); 
-						else if( actionNumber == currCell.DOWNWARD ) //downward
-							currCell.qValues[currCell.DOWNWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.DOWNWARD ] );
-						else if( actionNumber == currCell.UPWARD ) //upward
-							currCell.qValues[currCell.UPWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.UPWARD ] ); 
-						else if( actionNumber == currCell.HERE )
-							currCell.qValues[currCell.HERE] +=  ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.HERE ] ); 
-
-						if( nextCell.seen || nextCell.blocked ){ //collision -> the next episode
-							//lastNodes.Add ( nextNode );
-							break;
-						}
-
-						t++;
-						currX = nextX;
-						currY = nextY;
-					}while( t+1 <= original.Length-1 );
-
-					learnedResult.Clear();
-					learnedResult.Add( rrt.ReturnPath( nextNode, false ) ); // print a learned path 
-					
-					if (learnedResult.Count > 0) {
-						Color c =	new Color (UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f), UnityEngine.Random.Range (0.0f, 1.0f));
-						foreach( List<Node> nodes in learnedResult ){
-							paths.Add (new Path (nodes));
-							toggleStatus.Add (paths.Last (), true);
-							paths.Last ().color = c;
-						}
-					}
+						currCell = original[t][currX][currY];
+						//							currCell = testCells[currX][currY];
+//						currNode = new Node();
+//						currNode.x = currX;
+//						currNode.y = currY;
+//						currNode.t = t;
+//						currNode.cell = currCell;
+//						currNode.parent = null;
+						stop = false;
+						do{
+	
+							// get an action according to my policy, E-greedy
+//							List<int> actions = currCell.Select1ActionOnEGreedy( currX, currY, Epsilon_for_E_Greedy );
+							List<int> actions = currCell.Select1ActionOnGreedy( currX, currY );
+							
+							nextX = actions[0];
+							nextY = actions[1];
+							actionNumber = actions[2];
+							
+							if( !(nextX >= 0 && nextX <= gridSize - 1 && nextY >= 0 && nextY <= gridSize - 1 ) ){
+								reward = -200;
+								maxQ = float.MinValue;
+								stop = true;
+							}
+							else{
+							//	Debug.Log ( "x : " + nextX + " y : " + nextY + " t : " + t );
+								nextCell = original[t+1][nextX][nextY];
+								//							nextCell = testCells[nextX][nextY];
+//								nextNode = new Node();
+//								nextNode.t = t+1;
+//								nextNode.x = nextX;
+//								nextNode.y = nextY;
+//								nextNode.cell = nextCell;
+//								nextNode.parent = currNode;
+								
+								// get the reward value for Reinforcement
+								if( nextX == endX && nextY == endY ) // reched the goal
+									reward = 10000;
+								else if( nextCell.blocked ){ //collision
+									reward = -50;
+									stop = true;
+								}
+								else if( nextCell.seen ){ // collision
+									reward = -50;
+									stop = true;
+								}
+								else //simple movement
+									reward = -1;
+								maxQ = nextCell.getMaxQ();						
+							}
+							// update the Q-Function
+							if( actionNumber == currCell.LEFT ) //left
+								currCell.qValues[currCell.LEFT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.LEFT] ); 
+							else if( actionNumber == currCell.RIGHT ) //right
+								currCell.qValues[currCell.RIGHT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.RIGHT ] ); 
+							else if( actionNumber == currCell.DOWNWARD ) //downward
+								currCell.qValues[currCell.DOWNWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.DOWNWARD ] );
+							else if( actionNumber == currCell.UPWARD ) //upward
+								currCell.qValues[currCell.UPWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.UPWARD ] ); 
+							else if( actionNumber == currCell.HERE )
+								currCell.qValues[currCell.HERE] +=  ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.HERE ] ); 
+	
+							if( stop ){ //collision -> the next episode
+								//lastNodes.Add ( nextNode );
+								break;
+							}
+	
+							t++;
+							currX = nextX;
+							currY = nextY;
+							currCell = nextCell;
+//							currNode = nextNode;
+						}while( t+1 <= original.Length-1 );
+//						if( episode % 5 == 0 )
+//							lastNodes.Add( currNode ); // 모든 경우의 학습된 경로를 뽑기
 						
-						//}while( !(currX == endX && currY == endY) || i < 500 ); // repeat untill arrived the end point or iterated during not enough time
-
-					/*
-					Debug.Log ("t when success : " + t );
-					Debug.Log ("currX : " + currX + " currY : " + currY 
-					           + " startX : " + startX + " startY : " + startY
-					           + " endX : " + endX + " endY : " + endY );
-					*/
-					//Debug.Log("start R : " + original[0][startX][startY].qRight + " L : " + original[0][startX][startY].qLeft + " D : " + original[0][startX][startY].qDownward
-					  //        + " U : " + original[0][startX][startY].qUpward + " Here : " + original[0][startX][startY].qHere );
-				}
+					}//episode
+				}//iteration
 
 				sw.Stop();
 				Debug.Log ( "Elapsed time for RL : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
 				           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
-
+				
+				sw.Reset();
 				sw.Start();
 				//make a path learned above
 				currX = startX;
 				currY = startY;
-			//	Node currNode = new Node();
+				Node currNode = new Node();
 				currNode.x = currX;
 				currNode.y = currY;
 				currNode.t = 0;
-				//currNode.cell = original[0][currX][currY];
-				currNode.cell = testCells[currX][currY];
+				currNode.cell = original[0][currX][currY];
+//				currNode.cell = testCells[currX][currY];
 				System.Collections.Queue nodeQueue = new System.Collections.Queue();
 				nodeQueue.Enqueue( currNode );
 				//Node nextNode = null;
@@ -360,29 +373,32 @@ namespace EditorArea {
 				while( true ){
 				//while( nodeQueue.Count != 0 ){
 					currNode = (Node)nodeQueue.Dequeue();
-					if( currNode.t >= original.Length - 1 ){
+					
+					// time over or one that has not been to near ones
+					if( currNode.t >= original.Length - 1 || currNode.cell.isFirstVisit() ){
 						lastNodes.Add( currNode );
 						break;
 					}
-					nextXYList = currNode.cell.SelectRandomAction4MaxReward( currNode.x, currNode.y );
+					
+					nextXYList = currNode.cell.Select1ActionOnGreedy( currNode.x, currNode.y );
 					if( nextXYList == null ){ // the last node
 						lastNodes.Add( currNode );
 						//continue;
 						break;
 					}
 					for( int k = 0; k < nextXYList.Count/2; k++ ){
-						nextNode = new Node();
+						Node nextNode = new Node();
 						nextNode.x = nextXYList[k*2]; 
 						nextNode.y = nextXYList[k*2+1];
 						nextNode.t = currNode.t + 1;
-						Debug.Log( "t: " + nextNode.t + " x: " + nextNode.x + " y: " + nextNode.y );
-						//nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
-						nextNode.cell = testCells[nextNode.x][nextNode.y];
+						//Debug.Log( "t: " + nextNode.t + " x: " + nextNode.x + " y: " + nextNode.y );
+						nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
+//						nextNode.cell = testCells[nextNode.x][nextNode.y];
 						nextNode.parent = currNode;
 						nodeQueue.Enqueue( nextNode ); 
-					}
-				}
-
+					}//k
+				} //while
+				
 				foreach( Node n in lastNodes )
 					learnedResult.Add( rrt.ReturnPath( n, false ) ); // 모든 경우의 학습된 경로를 뽑기
 
@@ -428,9 +444,12 @@ namespace EditorArea {
 				ClearPathsRepresentation ();
 				arrangedByCrazy = arrangedByDanger = arrangedByDanger3 = arrangedByDanger3Norm = arrangedByLength = arrangedByLoS = arrangedByLoS3 = arrangedByLoS3Norm = arrangedByTime = arrangedByVelocity = null;
 
-				Exploration.DavAStar3d astar3d = new DavAStar3d();
-				List<Node> nodes = astar3d.Compute(startX, startY, endX, endY, original, playerSpeed);
+				//Exploration.DavAStar3d astar3d = new DavAStar3d();
+				//List<Node> nodes = astar3d.Compute(startX, startY, endX, endY, original, playerSpeed);
 
+				Exploration.AStarTY astarTY = new AStarTY();
+				List<Node> nodes = astarTY.Compute(startX, startY, endX, endY, original, playerSpeed);
+				
 				if (nodes.Count > 0) {
 					paths.Add (new Path (nodes));
 					toggleStatus.Add (paths.Last (), true);
