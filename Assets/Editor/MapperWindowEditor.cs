@@ -199,8 +199,8 @@ namespace EditorArea {
 			#endregion
 
 			// ----------------------------------
-			#region 3.5 Trianing
-			EditorGUILayout.LabelField ("3.5 Training");
+			#region 3.5-1 Trianing
+			EditorGUILayout.LabelField ("3.5-1 Training");
 			
 			start = (GameObject)EditorGUILayout.ObjectField ("Start", start, typeof(GameObject), true);
 			end = (GameObject)EditorGUILayout.ObjectField ("End", end, typeof(GameObject), true);
@@ -406,7 +406,8 @@ namespace EditorArea {
 				Debug.Log ( "Elapsed time for making paths : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
 				           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );
 			}
-
+			EditorGUILayout.LabelField ("");
+			
 			#endregion
 
 			// ----------------------------------
