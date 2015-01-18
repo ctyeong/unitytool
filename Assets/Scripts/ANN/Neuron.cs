@@ -22,15 +22,17 @@ namespace ANN
 		public double BiasDelta { get; set; }
 		public double Gradient { get; set; }
 		public double Value { get; set; }
+		public bool sigmoid = false;
 		
-		public Neuron()
+		public Neuron( )
 		{
 			InputSynapses = new List<Synapse>();
 			OutputSynapses = new List<Synapse>();
 			Bias = NeuralNetwork.NextRandom();
 		}
 		
-		public Neuron(List<Neuron> inputNeurons) : this()
+		
+		public Neuron(List<Neuron> inputNeurons, bool _sigmoid) : this()
 		{
 			foreach (var inputNeuron in inputNeurons)
 			{
@@ -38,16 +40,26 @@ namespace ANN
 				inputNeuron.OutputSynapses.Add(synapse);
 				InputSynapses.Add(synapse);
 			}
+			if( _sigmoid )
+				sigmoid = _sigmoid;
+		
 		}
 		
-		public virtual double CalculateValue()
+		public virtual double CalculateValue(  )
 		{
-			return Value = NeuralNetwork.SigmoidFunction(InputSynapses.Sum(a => a.Weight * a.InputNeuron.Value) + Bias);
+			if( sigmoid )
+				return Value = NeuralNetwork.SigmoidFunction(InputSynapses.Sum(a => a.Weight * a.InputNeuron.Value) + Bias);
+			else
+				return Value = NeuralNetwork.IdentityFunction(InputSynapses.Sum(a => a.Weight * a.InputNeuron.Value) + Bias);
 		}
 		
-		public virtual double CalculateDerivative()
+		public virtual double CalculateDerivative(  )
 		{
-			return NeuralNetwork.SigmoidDerivative(Value);
+			if( sigmoid )
+				return NeuralNetwork.SigmoidDerivative(Value);
+			else 
+				return NeuralNetwork.IdentityDerivative(Value);
+			
 		}
 		
 		public double CalculateError(double target)
@@ -57,26 +69,28 @@ namespace ANN
 		
 		public double CalculateGradient(double target)
 		{
-			return Gradient = CalculateError(target) * CalculateDerivative();
+			return Gradient = CalculateError(target) * (-1) * CalculateDerivative( );
 		}
 		
-		public double CalculateGradient()
+		public double CalculateGradient( )
 		{
-			return Gradient = OutputSynapses.Sum(a => a.OutputNeuron.Gradient * a.Weight) * CalculateDerivative();
+			return Gradient = OutputSynapses.Sum(a => a.OutputNeuron.Gradient * a.Weight) * CalculateDerivative( );
 		}
 		
-		public void UpdateWeights(double learnRate, double momentum)
+		public void UpdateWeights(double learnRate, double momentum )
 		{
 			var prevDelta = BiasDelta;
 			BiasDelta = learnRate * Gradient; // * 1
 			Bias += BiasDelta + momentum * prevDelta;
+		
 			
 			foreach (var s in InputSynapses)
 			{
 				prevDelta = s.WeightDelta;
-				s.WeightDelta = learnRate * Gradient * s.InputNeuron.Value;
+				s.WeightDelta = (-1) * learnRate * Gradient * s.InputNeuron.Value;
 				s.Weight += s.WeightDelta + momentum * prevDelta;
 			}
+			
 		}
 		}
 }

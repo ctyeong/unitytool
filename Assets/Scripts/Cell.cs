@@ -18,7 +18,7 @@ namespace Common {
 		public  int DOWNWARD = 2;
 		public  int UPWARD = 3;
 		public  int HERE = 4;
-		public float []qValues = new float[5];
+		public double []qValues = new double[5];
 		//public bool visit = false;
 				
 		public Cell Copy () {
@@ -33,9 +33,9 @@ namespace Common {
 			return copy;
 		}
 
-		public float getMaxQ(){
+		public double getMaxQ(){
 
-			float max = float.MinValue;
+			double max = double.MinValue;
 
 			for (int i = 0; i< qValues.Length; i++) {
 				if( qValues[i] > max )
@@ -49,7 +49,7 @@ namespace Common {
 		public List<int> allMove( int x, int y){
 
 			List <int> result = new List<int> ();
-			float max = getMaxQ ();
+			double max = getMaxQ ();
 
 			if (max == 0)
 								return null;
@@ -81,7 +81,7 @@ namespace Common {
 		
 		public List<int> Select1ActionOnEGreedy( int x, int y, float epsilon ){
 		
-			float max = getMaxQ ();
+			double max = getMaxQ ();
 			int maxAction = 0;
 			
 			while( !(this.qValues[maxAction] == max) )
@@ -95,7 +95,7 @@ namespace Common {
 			for( int i = 0; i < numMaxAction; i++ )
 				actions.Add( maxAction );
 
-			for( int j = 0; j < this.qValues.Length - 1; j++ ){
+			for( int j = 0; j < this.qValues.Length ; j++ ){
 				if( j == maxAction )
 					continue;
 				for( int k = 0; k < numEach; k++ )
@@ -135,7 +135,7 @@ namespace Common {
 		
 		public List<int> Select1ActionOnGreedy( int x, int y ){ //get random x, y among the maximum q values, {x, y, action}
 
-			float max = getMaxQ ();
+			double max = getMaxQ ();
 			int randomAction = 0;
 
 			while( !(qValues[randomAction] == max) )

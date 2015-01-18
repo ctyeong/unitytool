@@ -23,7 +23,7 @@ namespace ANN
 		
 		public NeuralNetwork(int inputSize, int hiddenSize, int outputSize)
 		{
-			LearnRate = .9;
+			LearnRate = .2;
 			Momentum = .04;
 			InputLayer = new List<Neuron>();
 			HiddenLayer = new List<Neuron>();
@@ -33,10 +33,10 @@ namespace ANN
 				InputLayer.Add(new Neuron());
 			
 			for (int i = 0; i < hiddenSize; i++)
-				HiddenLayer.Add(new Neuron(InputLayer));
+				HiddenLayer.Add(new Neuron(InputLayer, true)); // use the sigmoid function
 			
 			for (int i = 0; i < outputSize; i++)
-				OutputLayer.Add(new Neuron(HiddenLayer));
+				OutputLayer.Add(new Neuron(HiddenLayer, false)); // use the identity function
 		}
 		
 		public void Train(params double[] inputs)
@@ -62,10 +62,28 @@ namespace ANN
 		public void BackPropagate(params double[] targets)
 		{
 			int i = 0;
-			OutputLayer.ForEach(a => a.CalculateGradient(targets[i++]));
+			OutputLayer.ForEach(a => a.CalculateGradient(targets[i++])); //기울기 구하기 
 			HiddenLayer.ForEach(a => a.CalculateGradient());
 			HiddenLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum));
 			OutputLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum));
+			
+		}
+		
+		public void printWeights(){
+			UnityEngine.Debug.Log( "input weights in hidden layer ");
+			int num = 0;
+			foreach( Neuron n in HiddenLayer ){
+				for( int j = 0; j < n.InputSynapses.Count; j++ )
+					UnityEngine.Debug.Log ( "neuron" + num + "'s weight" + j + " : " + n.InputSynapses[j].Weight );
+				num++;
+			}
+			UnityEngine.Debug.Log( "input weights in output layer ");
+			num = 0;
+			foreach( Neuron n in OutputLayer ){
+				for( int j = 0; j < n.InputSynapses.Count; j++ )
+					UnityEngine.Debug.Log ( "neuron" + num + "'s weight" + j + " : " + n.InputSynapses[j].Weight );
+				num++;
+			}
 		}
 		
 		public static double NextRandom()
@@ -80,10 +98,19 @@ namespace ANN
 			return 1.0 / (1.0 + Math.Exp(-x));
 		}
 		
+		public static double IdentityFunction(double x){
+			return x;
+		}
+		
 		public static double SigmoidDerivative(double f)
 		{
 			return f * (1 - f);
 		}
+		
+		public static double IdentityDerivative(double f){
+			return 1;
+		}
+		
 		}
 }
 
