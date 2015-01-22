@@ -21,9 +21,10 @@ namespace ANN
 		public List<Neuron> OutputLayer { get; set; }
 		static Random random = new Random();
 		
-		public NeuralNetwork(int inputSize, int hiddenSize, int outputSize)
+		public NeuralNetwork(int inputSize, int hiddenSize, int outputSize, double _learningRate)
 		{
-			LearnRate = .2;
+			//LearnRate = .2;
+			LearnRate = _learningRate;
 			Momentum = .04;
 			InputLayer = new List<Neuron>();
 			HiddenLayer = new List<Neuron>();
@@ -36,7 +37,7 @@ namespace ANN
 				HiddenLayer.Add(new Neuron(InputLayer, true)); // use the sigmoid function
 			
 			for (int i = 0; i < outputSize; i++)
-				OutputLayer.Add(new Neuron(HiddenLayer, false)); // use the identity function
+				OutputLayer.Add(new Neuron(HiddenLayer, true)); // use the identity function
 		}
 		
 		public void Train(params double[] inputs)
@@ -59,13 +60,13 @@ namespace ANN
 			return OutputLayer.Sum(a => Math.Abs(a.CalculateError(targets[i++])));
 		}
 		
-		public void BackPropagate(params double[] targets)
+		public void BackPropagate( double[] targets, double weightQ )
 		{
 			int i = 0;
 			OutputLayer.ForEach(a => a.CalculateGradient(targets[i++])); //기울기 구하기 
 			HiddenLayer.ForEach(a => a.CalculateGradient());
-			HiddenLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum));
-			OutputLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum));
+			HiddenLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum, weightQ ));
+			OutputLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum, weightQ));
 			
 		}
 		

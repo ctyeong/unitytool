@@ -65,6 +65,7 @@ namespace ANN
 		public double CalculateError(double target)
 		{
 			return target - Value;
+//			return Math.Pow( target - Value, 2 );
 		}
 		
 		public double CalculateGradient(double target)
@@ -77,7 +78,7 @@ namespace ANN
 			return Gradient = OutputSynapses.Sum(a => a.OutputNeuron.Gradient * a.Weight) * CalculateDerivative( );
 		}
 		
-		public void UpdateWeights(double learnRate, double momentum )
+		public void UpdateWeights(double learnRate, double momentum, double weightQ )
 		{
 			var prevDelta = BiasDelta;
 			BiasDelta = learnRate * Gradient; // * 1
@@ -87,8 +88,8 @@ namespace ANN
 			foreach (var s in InputSynapses)
 			{
 				prevDelta = s.WeightDelta;
-				s.WeightDelta = (-1) * learnRate * Gradient * s.InputNeuron.Value;
-				s.Weight += s.WeightDelta + momentum * prevDelta;
+				s.WeightDelta = (-1) * learnRate * weightQ * Gradient * s.InputNeuron.Value;
+				s.Weight += s.WeightDelta;// + momentum * prevDelta;
 			}
 			
 		}

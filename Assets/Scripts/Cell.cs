@@ -19,6 +19,8 @@ namespace Common {
 		public  int UPWARD = 3;
 		public  int HERE = 4;
 		public double []qValues = new double[5];
+//		public double []qValues = new double[4];
+		
 		//public bool visit = false;
 				
 		public Cell Copy () {
