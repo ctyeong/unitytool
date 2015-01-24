@@ -12,6 +12,8 @@ using Extra;
 using Objects;
 using Learning;
 using ANN;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace EditorArea {
 	public class MapperWindowEditor : EditorWindow {
@@ -25,9 +27,9 @@ namespace EditorArea {
 		public static List<Path> paths = new List<Path> (), deaths = new List<Path>();
 
 		// Parameters with default values
-		public static int timeSamples = 1000, episodes = 3600, epoch = 500,  iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
+		public static int timeSamples = 1400, episodes = 3600, epoch = 100,  iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
 		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, learnedData = true, allBranches = true, drawByTimeSlice = false;
-		private static float stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.5f, ALPHA_LearningRate = 0.2f, Epsilon_for_E_Greedy = 0.4f ;
+		private static float stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.6f, ALPHA_LearningRate = 0.5f, Epsilon_for_E_Greedy = 0.4f ;
 		private static int randomSeed = -1;
 
 		// Computed parameters
@@ -39,14 +41,15 @@ namespace EditorArea {
 		private static int startX, startY, endX, endY, maxHeatMap, timeSlice, imported = 0;
 		private static bool seeByTime, seeByLength, seeByDanger, seeByLoS, seeByDanger3, seeByLoS3, seeByDanger3Norm, seeByLoS3Norm, seeByCrazy, seeByVelocity;
 		private static List<Path> arrangedByTime, arrangedByLength, arrangedByDanger, arrangedByLoS, arrangedByDanger3, arrangedByLoS3, arrangedByDanger3Norm, arrangedByLoS3Norm, arrangedByCrazy, arrangedByVelocity;
-
+		private static string annFile;
+		
 		// Helping stuff
 		private static Vector2 scrollPos = new Vector2 ();
 		private static GameObject playerNode;
 		private List<Tuple<Vector3, string>> textDraw = new List<Tuple<Vector3, string>>();
 		private int lastTime = timeSlice;
 		private long stepInTicks = 0L, playTime = 0L;
-		private static bool simulated = false, playing = false;
+		private static bool simulated = false, playing = false, imANN = true, exANN = true;
 		private Mapper mapper;
 		//private RRTKDTreeCombat rrt = new RRTKDTreeCombat ();
 	//	private RRTKDTree rrt = new RRTKDTree ();
@@ -415,10 +418,12 @@ namespace EditorArea {
 			#region 3.5-1 Trianing
 			//EditorGUILayout.LabelField ("3.5-2 ANN + Q-Learning");
 			
-
-			epoch = EditorGUILayout.IntSlider ("Epoch", epoch, 1, 100000 );
+			imANN = EditorGUILayout.Toggle ("Import ANN", imANN);
+			exANN = EditorGUILayout.Toggle ("Export ANN", exANN);
+			annFile = @"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\" + EditorGUILayout.TextField( "ann" );
 			
-			if (GUILayout.Button ("ANN + Q-Learning")) {
+			epoch = EditorGUILayout.IntSlider ("Epoch", epoch, 1, 100000 );
+			if (GUILayout.Button ("Train the Q-Fuction with ANN")) {
 			
 				//Check the start and the end and get them from the editor. 
 				if (start == null) {
@@ -434,114 +439,108 @@ namespace EditorArea {
 				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
 				
 				const int sight = 3;
-				double[] sensorInputs = new double[ sight * sight ];
-				int inputSize = sensorInputs.Length + 1; //plus bias // + actionInputs.Length;	
+				double[] allSensorInputs = new double[ sight * sight * 2 ];
+				int inputSize = allSensorInputs.Length + 1; //plus bias // + actionInputs.Length;	
 				double[] inputs = new double[ inputSize ];
-				inputs[ inputs.Length - 1 ] = 1; //bias
+				inputs[inputs.Length - 1] = 1; //bias
 				double[] inputs2Train = new double[ inputs.Length ];
-				int outputSize = original[0][0][0].qValues.Length; //# of possible actions 
-				int hiddenSize = ( inputSize + outputSize ) * 2/3; 			
+				int outputSize = 1;//original[0][0][0].qValues.Length; //# of possible actions 
+				int hiddenSize = ( inputSize + outputSize ) * 2/3; 
+				int numANN = original[0][0][0].qValues.Length;			
 				
-				double[] outputs = new double[ outputSize ];
-				double[] targetOutputs = new double[ outputSize ];
+				double[] qValues = new double[ numANN ];
+				double[] targetQValue = new double[1];
 				int currX, currY, nextX = 0, nextY = 0, selectedAction, selectedIndex, numMaxAction, numOthers, numEach;
 				Cell nextCell = null;
 				double reward, targetQ, selectedQ, weightQ;
 				Node currNode = null, nextNode = null;
 				List<Node> lastNodes = new List<Node>();
 				List<int> actionBox = new List<int>();
-				double[] boltzmannP = new double[outputs.Length];
-				Dictionary<string, int> learningDic = new Dictionary<string, int>();
-				const double temperature = 30.0;
+				double[] boltzmannP = new double[qValues.Length];
+				Dictionary<string, int> learningDic = null;
+				const double temperature = 40.0;
 				double denominator = 0, numerator = 0;
-				learnedResult.Clear();
+				State currState, nextState;
+				learnedResult.Clear();		
+				bool specialTransition = false;		
 				
 				System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
 				sw.Start();
 				//initialize an ANN
-				NeuralNetwork nn = new NeuralNetwork( inputSize, hiddenSize, outputSize, ALPHA_LearningRate );
-				System.IO.StreamWriter file1 = new System.IO.StreamWriter(@"C:\Users\ctyeong\Desktop\debug1.txt" );//for debug
-				System.IO.StreamWriter file2 = new System.IO.StreamWriter(@"C:\Users\ctyeong\Desktop\debug2.txt" );//for debug
+				NeuralNetwork[] nnArray = null;
+				if( imANN ){ //import already existing ANN and learning Dictionary for creating records file
+					IFormatter formatter = new BinaryFormatter();
+					Stream stream = new FileStream(annFile + "_network.bin", FileMode.Open, FileAccess.Read, FileShare.Read);
+					nnArray = (NeuralNetwork[])formatter.Deserialize(stream);
+					stream.Close();
+					
+					stream = new FileStream(annFile + "_dictionary.bin", FileMode.Open, FileAccess.Read, FileShare.Read);
+					learningDic = (Dictionary<string, int>)formatter.Deserialize(stream);
+					stream.Close();
+				}
+				else{
+					nnArray = new NeuralNetwork[ numANN ];
+					for( int i = 0; i < nnArray.Length; i++ )
+						nnArray[i] = new NeuralNetwork( inputSize, hiddenSize, outputSize, ALPHA_LearningRate );
+					learningDic = new Dictionary<string, int>();
+				}
 				
-				//training
+				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
+				ReplayManager rm = new ReplayManager( ref nnArray, ref sm );
+					
+				System.IO.StreamWriter traingRecordFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\training_records.txt" );//for debug
+//				System.IO.StreamWriter file2 = new System.IO.StreamWriter(@"C:\Users\ctyeong\Desktop\debug2.txt" );//for debug
+				
+				//ANN training
 				for( int iteration = 0; iteration < epoch; iteration++ ){
-					currX = startX;
-					currY = startY;
+					sm.reset();
+					rm.reset();
 					
-					if( (iteration+1)%(epoch) == 0 ){
-						currNode = new Node();
-						currNode.t = 0;
-						currNode.x = currX;
-						currNode.y = currY;
-						currNode.cell = original[currNode.t][currNode.x][currNode.y];
+//					currX = startX;
+//					currY = startY;
+					
+					while( true ){
+						currX = UnityEngine.Random.Range( 0, gridSize );
+						currY = UnityEngine.Random.Range( 0, gridSize );
+						if( !(original[0][currX][currY].seen || original[0][currX][currY].blocked) )
+							break;
 					}
-					
-					for( int time = 0; true; time++ ){
-//					    time + 1 < original.Length 
-//					    && currX >= 0 && currX <= gridSize - 1 
-//					    && currY >= 0 && currY <= gridSize - 1
-//						&& !original[time][currX][currY].seen 
-//						&& !original[time][currX][currY].blocked; time++ ){
-						if( !(time + 1 < original.Length)  ){
-							if( ( iteration + 1 ) % (epoch) == 0 )
-								file1.WriteLine("time out");
-							break;
-						}
-						else if( ! ( currX >= 0 && currX <= gridSize - 1 
-						        && currY >= 0 && currY <= gridSize - 1 ) ){
-							if( ( iteration + 1 ) % (epoch) == 0 )
-								file1.WriteLine( currX + " " + (gridSize-1) + " out of the map");
-							break;    
-						}
-						else if ( original[time][currX][currY].seen  ){
-							if( ( iteration + 1 ) % (epoch) == 0 )
-								file1.WriteLine("seen!");
-							break;
-						}
-						else if( original[time][currX][currY].blocked ){
-							if( ( iteration + 1 ) % (epoch) == 0 )
-								file1.WriteLine("blocked");
-							break;
-						}
+					currState = sm.addState( 0, currX, currY );
+						
+					for( int time = 0; //true; time++ ){
+					    time + 1 < original.Length 
+					    && currX >= 0 && currX <= gridSize - 1 
+					    && currY >= 0 && currY <= gridSize - 1
+						&& !original[time][currX][currY].seen 
+						&& !original[time][currX][currY].blocked; time++ ){
 						
 						//set the sensor inputs, points sensored by the player
-						sensorInputs = getSensorIntputs( sight, time, currX, currY );
-						sensorInputs.CopyTo( inputs, 0 );
-												
+						currState.sensors.CopyTo( inputs, 0 ); // sensors + bias = inputs
+													
 						//select the maximum Q-Value and its index, greedy policy
-						outputs = nn.Compute( inputs );
+						for( int i = 0; i < nnArray.Length; i++ ) 
+							qValues[i] = nnArray[i].Compute( inputs )[0];
 						
 						// choose an action greedily in the last try
-						if( ( iteration + 1 ) % (epoch) == 0 ){
-							selectedQ = outputs.Max();
-							selectedIndex = 0;
-							while( true ){
-								selectedIndex = UnityEngine.Random.Range( 0, outputs.Length );
-								if( outputs[selectedIndex] == selectedQ )
-									break;
-							}						
-							selectedAction = selectedIndex; //possibleActions[maxIndex];
+						actionBox.Clear();
+							
+						for( int i = 0; i < qValues.Length; i++ ){
+						  denominator = 0;
+						  numerator = Math.Exp( qValues[i] / temperature );
+						  for( int j = 0; j < qValues.Length; j++ ){ // sum except for the numerator's action
+//							  	if( j == i )
+//							  		continue;
+						  	denominator += Math.Exp( qValues[j] / temperature );
+						  }
+						  boltzmannP[i] = numerator / denominator;
 						}
-						else{ 	// boltzmann or e-greedy part
-							actionBox.Clear();
+						for( int i = 0; i < boltzmannP.Length; i++ ){
+						  int j = (int)Math.Round(boltzmannP[i] * 100); 
+						  for( ; j > 0; j-- )
+						  	actionBox.Add( i );
+						}
 							
-							for( int i = 0; i < outputs.Length; i++ ){
-							  denominator = 0;
-							  numerator = Math.Exp( outputs[i] / temperature );
-							  for( int j = 0; j < outputs.Length; j++ ){ // sum except for the numerator's action
-							  	if( j == i )
-							  		continue;
-							  	denominator += Math.Exp( outputs[j] / temperature );
-							  }
-							  boltzmannP[i] = numerator / denominator;
-							}
-							for( int i = 0; i < boltzmannP.Length; i++ ){
-							  int j = (int)Math.Round(boltzmannP[i] * 100); 
-							  for( ; j > 0; j-- )
-							  	actionBox.Add( i );
-							}
-							
-							// select an action based on the e-greedy policy
+						// select an action based on the e-greedy policy
 //							numMaxAction = (int)Mathf.Round( Epsilon_for_E_Greedy * 100 );
 //							numOthers = 100 - numMaxAction;
 //							numEach = numOthers / (outputs.Length - 1);
@@ -556,14 +555,13 @@ namespace EditorArea {
 //								for( int k = 0; k < numEach; k++ )
 //									actionBox.Add( j );
 //							}//j
-							//// end e-greedy
-							
-							selectedIndex = UnityEngine.Random.Range( 0, actionBox.Count );
-							selectedAction = actionBox[selectedIndex];
-						}
+						//// end e-greedy
+						
+						selectedIndex = UnityEngine.Random.Range( 0, actionBox.Count );
+						selectedAction = actionBox[selectedIndex];
 						
 						inputs.CopyTo( inputs2Train, 0 );
-						selectedQ = outputs[selectedAction];
+						selectedQ = qValues[selectedAction];
 						
 						//get the target Q
 						//get the X, Y after the action
@@ -587,145 +585,240 @@ namespace EditorArea {
 							nextX = currX;
 							nextY = currY;
 						}
+						nextState = sm.addState( time + 1, nextX, nextY );
 						
 						// in the last try
-						if( ( iteration + 1 ) % (epoch) == 0 ){//( (iteration+1)%(epoc) == 0 ){
-							//for debug 
-							file1.WriteLine ("\ni : " + iteration + " t : " + time);
-							file1.Write ("sensor> ");
-							for( int i = 0; i < inputs2Train.Length; i++ )
-								file1.Write( inputs2Train[i] + " " );
-							file1.Write ("\n");
-							file1.Write ("q-values> ");
-							for( int i = 0; i < outputs.Length; i++ )
-								file1.Write( outputs[i] + " " );
-							file1.Write ("\n");	
-							file1.WriteLine (  "x " + currX + " y " + currY + " nx "  + nextX + " ny " + nextY + " a " + selectedAction + " q " + outputs[selectedAction]);
-							
-							if( (nextX >= 0 && nextY >= 0 && nextX <= gridSize - 1 && nextY <= gridSize - 1 )){
-								nextNode = new Node();
-								nextNode.t = time + 1;
-								nextNode.x = nextX;
-								nextNode.y = nextY;
-								nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
-								nextNode.parent = currNode;
-								currNode = nextNode;
-							}													
+						// get the reward
+						if( nextX == endX && nextY == endY ){ // reched the goal
+							reward = 1;
+							specialTransition = true;
 						}
-						// not the last try, being learned
+//							if( Math.Sqrt( Math.Pow( nextX - endX, 2 ) + Math.Pow( nextY - endY, 2 ) ) <= Math.Sqrt(2) )
+//								reward = 1;
+						else if( !( nextX >=0 && nextX <= gridSize - 1 && nextY >= 0 && nextY <= gridSize - 1)
+					           || original[time+1][nextX][nextY].blocked  
+					        ||  original[time+1][nextX][nextY].seen ){ // out of the map, collision
+							reward = 0;
+							specialTransition = true;
+						}
+						else{ //simple movement
+							reward = 0.0003;
+							specialTransition = false;
+						}
+						
+						//get the maxQ( State', Action' )
+						//set the sensor inputs, points sensored by the player
+						if( specialTransition )
+							targetQ = reward;
 						else{
-							// get the reward
-							if( nextX == endX && nextY == endY ) // reched the goal
-								reward = 1;
-							else if( !( nextX >=0 && nextX <= gridSize - 1 && nextY >= 0 && nextY <= gridSize - 1 ) ) // out of the map, collision
-								reward = -1;
-							else if( original[time+1][nextX][nextY].blocked ) //collision
-								reward = -1;
-							else if( original[time+1][nextX][nextY].seen ) // collision
-								reward = -1;						
-							else if( selectedAction == original[0][0][0].HERE )
-								reward = -1;
-							else //simple movement
-								reward = 0.01;
-//							else{
-//								double currDistance = Math.Sqrt( Math.Pow( currX - endX, 2 ) + Math.Pow( currY - endY, 2 ) );
-//								double nextDistance = Math.Sqrt( Math.Pow( nextX - endX, 2 ) + Math.Pow( nextY - endY, 2 ) );
-//								if( currDistance > nextDistance )
-//									reward = 0.1;
-//								else 
-//									reward = -0.1;
-////								reward = ( currDistance - nextDistance ) * 0.1 - 0.01;
-//							}
-							
-							//get the maxQ( State', Action' )
-							//set the sensor inputs, points sensored by the player
-							sensorInputs = getSensorIntputs( sight, time + 1, nextX, nextY );
-							sensorInputs.CopyTo( inputs, 0 );
-							outputs = nn.Compute( inputs );
-	//						targetQ = selectedQ + ALPHA_LearningRate 
-	//						* ( reward + GAMMA_DiscountFactor * outputs.Max() - selectedQ );
-							targetQ = reward + GAMMA_DiscountFactor * outputs.Max();
-//							targetQ = reward + GAMMA_DiscountFactor * outputs.Min();
-							weightQ = 1;//( reward + GAMMA_DiscountFactor * outputs.Max() - selectedQ );
-							outputs = nn.Compute( inputs2Train );
-
-//							file.WriteLine( "before ");
-//							for( int i = 0; i < outputs.Length; i++ )
-//								file.Write( outputs[i] + " " );
-//							file.Write ("\n");
-							
-							//modify the selected action's Q value
-							for( int i = 0; i < targetOutputs.Length; i++ ){
-								if( i == selectedAction )
-									targetOutputs[i] = targetQ;
-								else
-									targetOutputs[i] = outputs[i];
-							}
-							
-							//train and update weight values
-							nn.Train( inputs2Train );
-							nn.BackPropagate( targetOutputs, weightQ );
-
-							if( selectedAction == 4 ){
-							  // Here
-							  file2.WriteLine ( "q : " + outputs[4] + " tq : " + targetOutputs[4]);
-							}
-
-//							file.WriteLine( "after action " + selectedAction );
-//							for( int i = 0; i < targetOutputs.Length; i++ )
-//									file.Write( targetOutputs[i] + " " );
-//							file.Write ("\n");
-																					
-//							for( int i = 0; i < inputs2Train.Length; i++ )
-//								file.Write( inputs2Train[i] + " " );
-//							file.Write ("\n");
-//
-//							file.WriteLine ( reward + " " +  iteration + " " + time + " " + currX + " " + currY + " "  + selectedAction + " " + outputs[selectedAction] + " " + targetQ + " " + (outputs[selectedAction]-targetQ));
-							
-							string key = inputs2Train[0] + "";
-							for( int i = 1; i < inputs2Train.Length; i++ ){
-								key = string.Concat( key, " ", inputs2Train[i] + "" );
-							}
-							if( learningDic.ContainsKey( key ) ){
-								int value = learningDic[ key ];
-								value++;
-								learningDic.Remove( key );
-								learningDic.Add( key, value );
-							}
-							else
-								learningDic.Add( key, 1 );
-							
+							nextState.sensors.CopyTo( inputs, 0 );
+							for( int i = 0; i < nnArray.Length; i++ ) 
+								qValues[i] = nnArray[i].Compute( inputs )[0];
+							targetQ = reward + GAMMA_DiscountFactor * qValues.Max();
 						}
-											
+						targetQValue[0] = targetQ;
+
+						//train and update weight values
+						nnArray[selectedAction].Train( inputs2Train );
+						nnArray[selectedAction].BackPropagate( targetQValue );
+						rm.addExp( currState, selectedAction, nextState, reward, specialTransition );
+						
+						string key = inputs2Train[0] + "";
+						for( int i = 1; i < inputs2Train.Length; i++ ){
+							key = string.Concat( key, " ", inputs2Train[i] + "" );
+						}
+						if( learningDic.ContainsKey( key ) ){
+							int value = learningDic[ key ];
+							value++;
+							learningDic.Remove( key );
+							learningDic.Add( key, value );
+						}
+						else
+							learningDic.Add( key, 1 );													
 						
 						currX = nextX;
 						currY = nextY;
-						
-//						file.Write ("\n");
-//						file.WriteLine ( " tt " + currX + " " + currY );
-						
+						currState = nextState;
 					}//time
-					if( (iteration+1)%(epoch) == 0 )
-						lastNodes.Add( currNode );	
-					
-					//nn.printWeights();
+					//replay
+					for( int i = 0; i < 20; i++ )
+					  rm.replay( GAMMA_DiscountFactor );
 				} // iterations
 				
-				file1.WriteLine("about learning ... ");
+				//export the ANN
+				if( exANN ){
+					IFormatter formatter = new BinaryFormatter();
+					Stream stream = new FileStream( annFile + "_network.bin", FileMode.Create, FileAccess.Write, FileShare.None);
+					formatter.Serialize(stream, nnArray);
+					stream.Close();
+					
+					stream = new FileStream( annFile + "_dictionary.bin", FileMode.Create, FileAccess.Write, FileShare.None);
+					formatter.Serialize(stream, learningDic);
+					stream.Close();
+				}
+				
+				traingRecordFile.WriteLine("about learning ... ");
 				int total = 0;
 				foreach( string key in learningDic.Keys ){
-					file1.WriteLine( key + " : " + learningDic[ key ] );
+					traingRecordFile.WriteLine( key + " : " + learningDic[ key ] );
 					total++;
 				}
-				file1.WriteLine( "total : " + total );
-				file1.Close();
-				file2.Close();
+				traingRecordFile.WriteLine( "total : " + total );
+				traingRecordFile.Close();
+//				file2.Close ();
 				sw.Stop();
 				Debug.Log ( "Elapsed time for training : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
 				           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );				
 				learnedResult.Clear();
+//				foreach( Node n sult.Add( rrt.ReturnPath( n, false ) );				
+			}
+			
+			
+			if (GUILayout.Button ("Activate the Player using ANN")) {
+				//initialize ANNs
+				
+				//Check the start and the end and get them from the editor. 
+				if (start == null) {
+					start = GameObject.Find ("Start");
+				}
+				if (end == null) {
+					end = GameObject.Find ("End");	
+				}
+				
+				startX = (int)((start.transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
+				startY = (int)((start.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
+				endX = (int)((end.transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
+				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
+				
+				const int sight = 3;
+				double[] allSensorInputs = new double[ sight * sight * 2 ];
+				int inputSize = allSensorInputs.Length + 1; //plus bias // + actionInputs.Length;	
+				double[] inputs = new double[ inputSize ];
+				inputs[inputs.Length - 1] = 1; //bias
+				
+				NeuralNetwork[] nnArray = null;
+				IFormatter formatter = new BinaryFormatter();
+				Stream stream = new FileStream(annFile + "_network.bin", FileMode.Open, FileAccess.Read, FileShare.Read);
+				nnArray = (NeuralNetwork[])formatter.Deserialize(stream);
+				stream.Close();
+				
+				State currState = null, nextState = null;
+				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\player_traces.txt" );//for debug
+				
+				
+				int numANN = original[0][0][0].qValues.Length;			
+				double[] qValues = new double[ numANN ];
+				double[] targetQValue = new double[1];
+				int nextX = 0, nextY = 0, selectedAction, selectedIndex;
+				Cell nextCell = null;
+				Node currNode = null, nextNode = null;
+				List<Node> lastNodes = new List<Node>();
+				List<int> actionBox = new List<int>();
+				double selectedQ;
+				
+				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
+				int currX = startX, currY = startY;
+				currState = sm.addState( 0, currX, currY );
+				
+				currNode = new Node();
+				currNode.t = 0;
+				currNode.x = currX;
+				currNode.y = currY;
+				currNode.cell = original[currNode.t][currNode.x][currNode.y];
+				
+				for( int time = 0; time < original.Length; time++ ){
+					if( !(time + 1 < original.Length)  ){
+						logFile.WriteLine("time out");
+						break;
+					}
+					else if( ! ( currX >= 0 && currX <= gridSize - 1 
+					            && currY >= 0 && currY <= gridSize - 1 ) ){
+						logFile.WriteLine( currX + " " + (gridSize-1) + " out of the map");
+						break;    
+					}
+					else if ( original[time][currX][currY].seen  ){
+						logFile.WriteLine("seen!");
+						break;
+					}
+					else if( original[time][currX][currY].blocked ){
+						logFile.WriteLine("blocked");
+						break;
+					}
+				
+					//set the sensor inputs, points sensored by the player
+					currState.sensors.CopyTo( inputs, 0 ); // sensors + bias = inputs
+					
+					//select the maximum Q-Value and its index, greedy policy
+					for( int i = 0; i < nnArray.Length; i++ ) 
+						qValues[i] = nnArray[i].Compute( inputs )[0];
+					
+					// choose an action greedily in the last try
+					selectedQ = qValues.Max();
+					selectedIndex = 0;
+					while( true ){
+						selectedIndex = UnityEngine.Random.Range( 0, qValues.Length );
+						if( qValues[selectedIndex] == selectedQ )
+							break;
+					}						
+					selectedAction = selectedIndex; //possibleActions[maxIndex];
+					
+					//get the X, Y after the action
+					if( selectedAction == original[0][0][0].LEFT ){
+						nextX = currX - 1;
+						nextY = currY;
+					}
+					else if( selectedAction == original[0][0][0].RIGHT ){
+						nextX = currX + 1;
+						nextY = currY;
+					}
+					else if( selectedAction == original[0][0][0].UPWARD ){
+						nextX = currX;
+						nextY = currY + 1;
+					}
+					else if( selectedAction == original[0][0][0].DOWNWARD ){
+						nextX = currX;
+						nextY = currY - 1;
+					}
+					else if( selectedAction == original[0][0][0].HERE ){
+						nextX = currX;
+						nextY = currY;
+					}
+					nextState = sm.addState( time + 1, nextX, nextY );
+										
+					//for debug 
+					logFile.WriteLine ("t : " + time);
+					logFile.Write ("sensor> ");
+					for( int i = 0; i < currState.sensors.Length; i++ )
+						logFile.Write( currState.sensors[i] + " " );
+					logFile.Write ("\n");
+					logFile.Write ("q-values> ");
+					for( int i = 0; i < qValues.Length; i++ )
+						logFile.Write( qValues[i] + " " );
+					logFile.Write ("\n");	
+					logFile.WriteLine (  "x " + currX + " y " + currY + " nx "  + nextX + " ny " + nextY + " a " + selectedAction + " q " + qValues[selectedAction] + "\n" );
+						
+					if( (nextX >= 0 && nextY >= 0 && nextX <= gridSize - 1 && nextY <= gridSize - 1 )){
+						nextNode = new Node();
+						nextNode.t = time + 1;
+						nextNode.x = nextX;
+						nextNode.y = nextY;
+						nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
+						nextNode.parent = currNode;
+						currNode = nextNode;
+					}													
+					
+					currX = nextX;
+					currY = nextY;
+					currState = nextState;
+								
+				}//time
+				logFile.Close();
+				lastNodes.Add( currNode );	
+				
+				learnedResult.Clear();
 				foreach( Node n in lastNodes )
-					learnedResult.Add( rrt.ReturnPath( n, false ) );				
+					learnedResult.Add( rrt.ReturnPath( n, false ) );
+				
 			}
 			EditorGUILayout.LabelField ("");
 			#endregion
@@ -1782,30 +1875,7 @@ namespace EditorArea {
 			}
 		}
 		
-		private double[] getSensorIntputs( int sight, int time, int currX, int currY ){
-			double[] sensorInputs = new double[ sight * sight ];
-			int focusX, focusY;
-			for( int j = 0; j < sensorInputs.Length; j++ ){
-				focusX = currX-(sight-1)/2+(j%sight);
-				focusY = currY-(sight-1)/2+(j/sight);
-				
-				if( focusX >= 0 && focusX <= gridSize-1 && focusY >= 0 && focusY <= gridSize-1 ){
-					if( original[time][focusX][focusY].blocked)
-						sensorInputs[j] = -1; // an obstacle
-					else if ( original[time][focusX][focusY].seen)
-						sensorInputs[j] = -1; // an enemy
-					else if ( focusX == endX && focusY == endY )
-						sensorInputs[j] = 1; // the goal
-					else{
-						sensorInputs[j] = 0; // can go
-//						sensorInputs[j] = Math.Sqrt( Math.Pow( focusX - endX , 2) + Math.Pow( focusY - endY , 2 ) ) / 60 * Math.Sqrt(2);
-					}
-				}
-				else
-					sensorInputs[j] = -1; // out of the map
-			} // j
-			return sensorInputs;
-		}
+	
 		//check if out of the map after an action
 		private void getPossibleActions( ref List<int> possibleActions, int currX, int currY ){
 			possibleActions.Clear();

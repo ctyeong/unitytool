@@ -14,15 +14,17 @@ namespace Learning
 		public class State
 		{
 		
-			public	int x;
-			public int y;
-			public int num;
+//			public	int x;
+//			public int y;
+			public int id;
+			public double[] sensors; 
 		
-				public State ( int _x, int _y, int _num )
+				public State ( int _id, double[] _inputs )
 				{
-					x = _x;
-					y = _y;
-					num = _num;
+//					x = _x;
+//					y = _y;
+					id = _id;
+					sensors = _inputs;
 				}
 		}
 }

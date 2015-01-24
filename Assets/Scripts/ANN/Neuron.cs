@@ -14,6 +14,7 @@ using System.Linq;
 
 namespace ANN
 {
+		[Serializable]
 		public class Neuron
 		{
 		public List<Synapse> InputSynapses { get; set; }
@@ -28,7 +29,7 @@ namespace ANN
 		{
 			InputSynapses = new List<Synapse>();
 			OutputSynapses = new List<Synapse>();
-			Bias = NeuralNetwork.NextRandom();
+			//Bias = NeuralNetwork.NextRandom();
 		}
 		
 		
@@ -48,9 +49,9 @@ namespace ANN
 		public virtual double CalculateValue(  )
 		{
 			if( sigmoid )
-				return Value = NeuralNetwork.SigmoidFunction(InputSynapses.Sum(a => a.Weight * a.InputNeuron.Value) + Bias);
+				return Value = NeuralNetwork.SigmoidFunction(InputSynapses.Sum(a => a.Weight * a.InputNeuron.Value) );//+ Bias);
 			else
-				return Value = NeuralNetwork.IdentityFunction(InputSynapses.Sum(a => a.Weight * a.InputNeuron.Value) + Bias);
+				return Value = NeuralNetwork.IdentityFunction(InputSynapses.Sum(a => a.Weight * a.InputNeuron.Value) );//+ Bias);
 		}
 		
 		public virtual double CalculateDerivative(  )
@@ -78,7 +79,7 @@ namespace ANN
 			return Gradient = OutputSynapses.Sum(a => a.OutputNeuron.Gradient * a.Weight) * CalculateDerivative( );
 		}
 		
-		public void UpdateWeights(double learnRate, double momentum, double weightQ )
+		public void UpdateWeights(double learnRate, double momentum )
 		{
 			var prevDelta = BiasDelta;
 			BiasDelta = learnRate * Gradient; // * 1
@@ -88,7 +89,7 @@ namespace ANN
 			foreach (var s in InputSynapses)
 			{
 				prevDelta = s.WeightDelta;
-				s.WeightDelta = (-1) * learnRate * weightQ * Gradient * s.InputNeuron.Value;
+				s.WeightDelta = (-1) * learnRate * Gradient * s.InputNeuron.Value;
 				s.Weight += s.WeightDelta;// + momentum * prevDelta;
 			}
 			

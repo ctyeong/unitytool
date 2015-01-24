@@ -8,22 +8,24 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 using System;
-namespace ANN
+namespace Learning
 {
-		[Serializable]
-		public class Synapse
+		public class Experience
 		{
-		public Neuron InputNeuron { get; set; }
-		public Neuron OutputNeuron { get; set; }
-		public double Weight { get; set; }
-		public double WeightDelta { get; set; }
-		
-		public Synapse(Neuron inputNeuron, Neuron outputNeuron)
-		{
-			InputNeuron = inputNeuron;
-			OutputNeuron = outputNeuron;
-			Weight = 0;//NeuralNetwork.NextRandom();
-		}
+			public int beforeStateId;
+			public int afterStateId;
+			public int action;
+			public double reward;
+			public bool special;
+			
+				public Experience ( int _beforeID, int _action, int _afterID, double _reward, bool _special )
+				{
+					beforeStateId = _beforeID;
+					afterStateId = _afterID;
+					action = _action;
+					reward = _reward;
+					special = _special;
+				}
 		}
 }
 

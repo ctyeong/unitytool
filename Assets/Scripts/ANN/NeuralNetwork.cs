@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Linq;
 namespace ANN
 {
+		[Serializable]
 		public class NeuralNetwork
 		{
 		public double LearnRate { get; set; }
@@ -20,6 +21,7 @@ namespace ANN
 		public List<Neuron> HiddenLayer { get; set; }
 		public List<Neuron> OutputLayer { get; set; }
 		static Random random = new Random();
+//		public Dictionary<string, int> learningDic = new Dictionary<string, int>();
 		
 		public NeuralNetwork(int inputSize, int hiddenSize, int outputSize, double _learningRate)
 		{
@@ -60,13 +62,13 @@ namespace ANN
 			return OutputLayer.Sum(a => Math.Abs(a.CalculateError(targets[i++])));
 		}
 		
-		public void BackPropagate( double[] targets, double weightQ )
+		public void BackPropagate( double[] targets )
 		{
 			int i = 0;
 			OutputLayer.ForEach(a => a.CalculateGradient(targets[i++])); //기울기 구하기 
 			HiddenLayer.ForEach(a => a.CalculateGradient());
-			HiddenLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum, weightQ ));
-			OutputLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum, weightQ));
+			HiddenLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum));
+			OutputLayer.ForEach(a => a.UpdateWeights(LearnRate, Momentum));
 			
 		}
 		
