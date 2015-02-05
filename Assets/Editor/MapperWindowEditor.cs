@@ -27,8 +27,8 @@ namespace EditorArea {
 		public static List<Path> paths = new List<Path> (), deaths = new List<Path>();
 
 		// Parameters with default values
-		public static int timeSamples = 1400, episodes = 3600, epoch = 100,  iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
-		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, learnedData = true, allBranches = true, drawByTimeSlice = false;
+		public static int timeSamples = 1400, episodes = 3600, epoch = 100, pathNum2Draw = 0, iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
+		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, learnedData = true, allBranches = true, drawByTimeSlice = false, drawPaths1By1 = true;
 		private static float stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.6f, ALPHA_LearningRate = 0.5f, Epsilon_for_E_Greedy = 0.4f ;
 		private static int randomSeed = -1;
 
@@ -251,10 +251,10 @@ namespace EditorArea {
 				//initialize Q values, if out of the map, the lowest value
 				for( int w = 0; w < original.Length; w++ ){
 					for( int ww = 0; ww < gridSize; ww++ ){
-						original[w][0][ww].qValues[ original[0][0][0].LEFT ] = float.MinValue;
-						original[w][ww][0].qValues[ original[0][0][0].DOWNWARD ] = float.MinValue;
-						original[w][gridSize-1][ww].qValues[ original[0][0][0].RIGHT ] = float.MinValue;
-						original[w][ww][gridSize-1].qValues[ original[0][0][0].UPWARD ] = float.MinValue;						
+						original[w][0][ww].qValues[ original[0][0][0].FORWARD ] = float.MinValue;
+						original[w][ww][0].qValues[ original[0][0][0].RIGHT_TURN ] = float.MinValue;
+//						original[w][gridSize-1][ww].qValues[ original[0][0][0].BACKWARD ] = float.MinValue;
+						original[w][ww][gridSize-1].qValues[ original[0][0][0].LEFT_TURN ] = float.MinValue;						
 					}					   
 				}
 
@@ -324,16 +324,16 @@ namespace EditorArea {
 								maxQ = nextCell.getMaxQ();						
 							}
 							// update the Q-Function
-							if( actionNumber == currCell.LEFT ) //left
-								currCell.qValues[currCell.LEFT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.LEFT] ); 
-							else if( actionNumber == currCell.RIGHT ) //right
-								currCell.qValues[currCell.RIGHT] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.RIGHT ] ); 
-							else if( actionNumber == currCell.DOWNWARD ) //downward
-								currCell.qValues[currCell.DOWNWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.DOWNWARD ] );
-							else if( actionNumber == currCell.UPWARD ) //upward
-								currCell.qValues[currCell.UPWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.UPWARD ] ); 
-							else if( actionNumber == currCell.HERE )
-								currCell.qValues[currCell.HERE] +=  ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.HERE ] ); 
+							if( actionNumber == currCell.FORWARD ) //left
+								currCell.qValues[currCell.FORWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.FORWARD] ); 
+//							else if( actionNumber == currCell.BACKWARD ) //right
+//								currCell.qValues[currCell.BACKWARD] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.BACKWARD ] ); 
+							else if( actionNumber == currCell.RIGHT_TURN ) //downward
+								currCell.qValues[currCell.RIGHT_TURN] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.RIGHT_TURN ] );
+							else if( actionNumber == currCell.LEFT_TURN ) //upward
+								currCell.qValues[currCell.LEFT_TURN] += ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.LEFT_TURN ] ); 
+//							else if( actionNumber == currCell.STOP )
+//								currCell.qValues[currCell.STOP] +=  ALPHA_LearningRate * ( reward + GAMMA_DiscountFactor * maxQ - currCell.qValues[currCell.STOP ] ); 
 	
 							if( stop ){ //collision -> the next episode
 								//lastNodes.Add ( nextNode );
@@ -371,7 +371,7 @@ namespace EditorArea {
 				nodeQueue.Enqueue( currNode );
 				//Node nextNode = null;
 				learnedResult.Clear(); // a space for containing result paths
-				int time = 0;
+//				int time = 0;
 				List<int> nextXYList;
 
 				while( true ){
@@ -439,13 +439,16 @@ namespace EditorArea {
 				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
 				
 				const int sight = 3;
-				double[] allSensorInputs = new double[ sight * sight * 2 ];
+				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
+				double[] allSensorInputs = new double[ sm.allSensorInputSize ]; //+1 means plus not visible, 2 * 3 means direction to the end, + 5 is direction
 				int inputSize = allSensorInputs.Length + 1; //plus bias // + actionInputs.Length;	
-				double[] inputs = new double[ inputSize ];
-				inputs[inputs.Length - 1] = 1; //bias
-				double[] inputs2Train = new double[ inputs.Length ];
+				double[] nextInputs = new double[ inputSize ];
+				nextInputs[nextInputs.Length - 1] = 1; //bias
+				double[] currInputs = new double[ nextInputs.Length ];
+				currInputs[currInputs.Length - 1] = 1; //bias
+				
 				int outputSize = 1;//original[0][0][0].qValues.Length; //# of possible actions 
-				int hiddenSize = ( inputSize + outputSize ) * 2/3; 
+				int hiddenSize = inputSize;//( inputSize + outputSize ) * 2/3; 
 				int numANN = original[0][0][0].qValues.Length;			
 				
 				double[] qValues = new double[ numANN ];
@@ -456,13 +459,14 @@ namespace EditorArea {
 				Node currNode = null, nextNode = null;
 				List<Node> lastNodes = new List<Node>();
 				List<int> actionBox = new List<int>();
-				double[] boltzmannP = new double[qValues.Length];
+//				double[] boltzmannP = new double[qValues.Length];
 				Dictionary<string, int> learningDic = null;
-				const double temperature = 40.0;
-				double denominator = 0, numerator = 0;
-				State currState, nextState;
+//				double temperature = 10.0;
+//				double denominator = 0, numerator = 0;
+				State state, nextState;
 				learnedResult.Clear();		
-				bool specialTransition = false;		
+				bool specialTransition = false, replay = false;
+				int direction = 0, nextDirection = 0;;		
 				
 				System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
 				sw.Start();
@@ -485,165 +489,320 @@ namespace EditorArea {
 					learningDic = new Dictionary<string, int>();
 				}
 				
-				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
+
 				ReplayManager rm = new ReplayManager( ref nnArray, ref sm );
-					
+				Dictionary< int, double > cumulativeRSet = new Dictionary< int, double >();
+				double cumulativeR;
+				bool collision = false, outside = false, stopLearning = false;
+								
 				System.IO.StreamWriter traingRecordFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\training_records.txt" );//for debug
-//				System.IO.StreamWriter file2 = new System.IO.StreamWriter(@"C:\Users\ctyeong\Desktop\debug2.txt" );//for debug
+				System.IO.StreamWriter cumulativeRFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\cumulative_rewards.txt" );//for debug
+				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\player_traces_learning.txt" );//for debug
+				float deltaEpsilon = (1 - Epsilon_for_E_Greedy) / epoch;
+				float epsilon = Epsilon_for_E_Greedy - deltaEpsilon;
 				
 				//ANN training
 				for( int iteration = 0; iteration < epoch; iteration++ ){
 					sm.reset();
 					rm.reset();
 					
-//					currX = startX;
-//					currY = startY;
+					currX = startX;
+					currY = startY;
+					currNode = new Node();
+					currNode.x = currX;
+					currNode.y = currY;
+					currNode.t = 0;
+					currNode.cell = original[0][currNode.x][currNode.y];
+//					while( true ){
+//						currX = UnityEngine.Random.Range( 0, gridSize );
+//						currY = UnityEngine.Random.Range( 0, gridSize );
+//						if( !(original[0][currX][currY].seen || original[0][currX][currY].blocked) )
+//							break;
+//					}
 					
-					while( true ){
-						currX = UnityEngine.Random.Range( 0, gridSize );
-						currY = UnityEngine.Random.Range( 0, gridSize );
-						if( !(original[0][currX][currY].seen || original[0][currX][currY].blocked) )
-							break;
-					}
-					currState = sm.addState( 0, currX, currY );
-						
-					for( int time = 0; //true; time++ ){
-					    time + 1 < original.Length 
-					    && currX >= 0 && currX <= gridSize - 1 
-					    && currY >= 0 && currY <= gridSize - 1
-						&& !original[time][currX][currY].seen 
-						&& !original[time][currX][currY].blocked; time++ ){
+					direction = 1;//temp //UnityEngine.Random.Range( 0, 4 );					
+					state = sm.addState( 0, currX, currY, direction );
+					cumulativeR = 0;
+					collision = false;
+					outside = false;
+					epsilon += deltaEpsilon;
+					logFile.WriteLine( "\n#" + iteration + " epsilon : " + epsilon );
+					
+					
+					for( int time = 0; time + 1 < original.Length && !outside && !collision; time++ ){
 						
 						//set the sensor inputs, points sensored by the player
-						currState.sensors.CopyTo( inputs, 0 ); // sensors + bias = inputs
+						state.sensors.CopyTo( currInputs, 0 ); // sensors + bias = inputs
 													
 						//select the maximum Q-Value and its index, greedy policy
 						for( int i = 0; i < nnArray.Length; i++ ) 
-							qValues[i] = nnArray[i].Compute( inputs )[0];
+							qValues[i] = nnArray[i].Compute( currInputs )[0];
 						
 						// choose an action greedily in the last try
 						actionBox.Clear();
 							
-						for( int i = 0; i < qValues.Length; i++ ){
-						  denominator = 0;
-						  numerator = Math.Exp( qValues[i] / temperature );
-						  for( int j = 0; j < qValues.Length; j++ ){ // sum except for the numerator's action
-//							  	if( j == i )
-//							  		continue;
-						  	denominator += Math.Exp( qValues[j] / temperature );
-						  }
-						  boltzmannP[i] = numerator / denominator;
-						}
-						for( int i = 0; i < boltzmannP.Length; i++ ){
-						  int j = (int)Math.Round(boltzmannP[i] * 100); 
-						  for( ; j > 0; j-- )
-						  	actionBox.Add( i );
-						}
+//						for( int i = 0; i < qValues.Length; i++ ){
+//						  denominator = 0;
+//						  numerator = Math.Exp( qValues[i] / temperature );
+//						  for( int j = 0; j < qValues.Length; j++ ){ // sum except for the numerator's action
+////							  	if( j == i )
+////							  		continue;
+//						  	denominator += Math.Exp( qValues[j] / temperature );
+//						  }
+//						  boltzmannP[i] = numerator / denominator;
+//						}
+//						for( int i = 0; i < boltzmannP.Length; i++ ){
+//						  int j = (int)Math.Round(boltzmannP[i] * 100); 
+//						  for( ; j > 0; j-- )
+//						  	actionBox.Add( i );
+//						}
 							
 						// select an action based on the e-greedy policy
-//							numMaxAction = (int)Mathf.Round( Epsilon_for_E_Greedy * 100 );
-//							numOthers = 100 - numMaxAction;
-//							numEach = numOthers / (outputs.Length - 1);
-//							
-//							actionBox .Clear();
-//							for( int i = 0; i < numMaxAction; i++ ) // put the max action 100 * E times 
-//								actionBox.Add( selectedAction );
-//							
-//							for( int j = 0; j < outputs.Length; j++ ){ // put the others 100 - E times
-//								if( j == selectedAction )
-//									continue;
-//								for( int k = 0; k < numEach; k++ )
-//									actionBox.Add( j );
-//							}//j
+						numMaxAction = (int)Mathf.Round( epsilon * 100 );
+						numOthers = 100 - numMaxAction;
+						numEach = numOthers / (qValues.Length - 1);
+						
+						while( true ){
+							selectedAction = UnityEngine.Random.Range( 0, qValues.Length );
+							if( qValues[selectedAction] == qValues.Max() )
+								break;
+						}						
+						actionBox .Clear();
+						for( int i = 0; i < numMaxAction; i++ ) // put the max action 100 * E times 
+							actionBox.Add( selectedAction );
+						
+						for( int j = 0; j < qValues.Length; j++ ){ // put the others 100 - E times
+							if( j == selectedAction )
+								continue;
+							for( int k = 0; k < numEach; k++ )
+								actionBox.Add( j );
+						}//j
 						//// end e-greedy
 						
-						selectedIndex = UnityEngine.Random.Range( 0, actionBox.Count );
-						selectedAction = actionBox[selectedIndex];
-						
-						inputs.CopyTo( inputs2Train, 0 );
-						selectedQ = qValues[selectedAction];
+						// finish the action selection
+						selectedAction = actionBox[ UnityEngine.Random.Range( 0, actionBox.Count ) ];
+//						selectedQ = qValues[selectedAction];
 						
 						//get the target Q
 						//get the X, Y after the action
-						if( selectedAction == original[0][0][0].LEFT ){
-							nextX = currX - 1;
+						if( selectedAction == original[0][0][0].FORWARD ){
+							nextX = 0;
+							nextY = 1;
+							int tempX, tempY;
+							for( int i = 0; i < direction; i++ ){
+								tempX = nextX;
+								tempY = nextY;
+								nextX = tempY;
+								nextY = -1 * tempX;
+							}
+							nextX += currX;
+							nextY += currY;
+						}
+						else if( selectedAction == original[0][0][0].BACKWARD ){
+							nextX = 0;
+							nextY = -1;
+							int tempX, tempY;
+							for( int i = 0; i < direction; i++ ){
+								tempX = nextX;
+								tempY = nextY;
+								nextX = tempY;
+								nextY = -1 * tempX;
+							}
+							nextX += currX;
+							nextY += currY;
+						}
+						else if( selectedAction == original[0][0][0].LEFT_TURN ){
+							nextX = currX;
+							nextY = currY;
+							direction = (direction + 3) % 4;
+//							time -= 1;
+						}
+						else if( selectedAction == original[0][0][0].RIGHT_TURN ){
+							nextX = currX;
+							nextY = currY;
+							direction = (direction + 1) % 4;
+//							time -= 1;
+						}
+						else if( selectedAction == original[0][0][0].STOP ){
+							nextX = currX;
 							nextY = currY;
 						}
-						else if( selectedAction == original[0][0][0].RIGHT ){
-							nextX = currX + 1;
-							nextY = currY;
-						}
-						else if( selectedAction == original[0][0][0].UPWARD ){
-							nextX = currX;
-							nextY = currY + 1;
-						}
-						else if( selectedAction == original[0][0][0].DOWNWARD ){
-							nextX = currX;
-							nextY = currY - 1;
-						}
-						else if( selectedAction == original[0][0][0].HERE ){
-							nextX = currX;
-							nextY = currY;
-						}
-						nextState = sm.addState( time + 1, nextX, nextY );
+						state = sm.addState( time + 1, nextX, nextY, direction );
+						state.sensors.CopyTo( nextInputs, 0 );
 						
-						// in the last try
+						reward = 0;
 						// get the reward
-						if( nextX == endX && nextY == endY ){ // reched the goal
-							reward = 1;
-							specialTransition = true;
-						}
-//							if( Math.Sqrt( Math.Pow( nextX - endX, 2 ) + Math.Pow( nextY - endY, 2 ) ) <= Math.Sqrt(2) )
-//								reward = 1;
-						else if( !( nextX >=0 && nextX <= gridSize - 1 && nextY >= 0 && nextY <= gridSize - 1)
+						// collision
+						if( !( nextX >=0 && nextX <= gridSize - 1 && nextY >= 0 && nextY <= gridSize - 1)
 					           || original[time+1][nextX][nextY].blocked  
 					        ||  original[time+1][nextX][nextY].seen ){ // out of the map, collision
-							reward = 0;
+							reward = 0; 
 							specialTransition = true;
+							replay = false;
+							outside = true;
+							collision = true;
 						}
-						else{ //simple movement
-							reward = 0.0003;
-							specialTransition = false;
+						// visiting the end point
+						else if( currX != endX && currY != endY && nextX == endX && nextY == endY ){ 
+							reward += 1;
+							specialTransition = true;
+							replay = false;
 						}
+						// no collision
+						else{
+							//continuous-type rewards
+							double currNoBlock = currInputs[sm.sensor4Block.Length-1];
+							double nextNoBlock = nextInputs[sm.sensor4Block.Length-1];
+							double currNoGoal = currInputs[ sm.sensor4Block.Length + sm.sensor4Goal.Length -1  ];
+							double nextNoGoal = nextInputs[ sm.sensor4Block.Length + sm.sensor4Goal.Length -1  ];
+							
+//							if( nextNoGoal == 1 ){ // no relation to the goal
+//								reward -= 0.0001;//-0.01;
+//								specialTransition = false;
+//								replay = false;
+//							}
+					
+							//avoid some blocks
+							if( currNoBlock == 0 && nextNoBlock == 1 ){ 
+								reward += 0.1;
+								specialTransition = false;
+								replay = false;
+							}
+							
+							//nearer to some blocks
+							if ( currNoBlock == 1 && nextNoBlock == 0){
+								reward -= 0.1;
+								specialTransition = false;
+								replay = false;
+							}
+							
+//							if( selectedAction == original[0][0][0].FORWARD ){
+//								reward += 0.001;//-0.04;
+//								specialTransition = false;
+//								replay = false;
+//							}
+						}
+							
+//							if( selectedAction == original[0][0][0].RIGHT_TURN 
+//							        || selectedAction == original[0][0][0].LEFT_TURN){
+//	//						        || selectedAction == original[0][0][0].STOP  ){ //simple movement
+//								reward = 0;//-0.025; //주어진 시간 안에 clear 를 해야 함.
+//								specialTransition = false;
+//								replay = false;
+//							}
+//							else if ( selectedAction == original[0][0][0].STOP ){
+//								reward = 0;
+//								specialTransition = false;
+//								replay = false;
+//							}
+//							else if( selectedAction == original[0][0][0].BACKWARD ){
+//								reward = 0;//-0.04;
+//								specialTransition = false;
+//								replay = false;
+//							}
+//							else{
+//								reward = 0.1;//-0.01;
+//								specialTransition = false;
+//								replay = false;
+//							}
+						
+						cumulativeR += reward;
 						
 						//get the maxQ( State', Action' )
 						//set the sensor inputs, points sensored by the player
 						if( specialTransition )
 							targetQ = reward;
 						else{
-							nextState.sensors.CopyTo( inputs, 0 );
 							for( int i = 0; i < nnArray.Length; i++ ) 
-								qValues[i] = nnArray[i].Compute( inputs )[0];
+								qValues[i] = nnArray[i].Compute( nextInputs )[0];
 							targetQ = reward + GAMMA_DiscountFactor * qValues.Max();
 						}
 						targetQValue[0] = targetQ;
 
-						//train and update weight values
-						nnArray[selectedAction].Train( inputs2Train );
-						nnArray[selectedAction].BackPropagate( targetQValue );
-						rm.addExp( currState, selectedAction, nextState, reward, specialTransition );
-						
-						string key = inputs2Train[0] + "";
-						for( int i = 1; i < inputs2Train.Length; i++ ){
-							key = string.Concat( key, " ", inputs2Train[i] + "" );
+						//manage the learning records
+						stopLearning = false; 
+						string key = currInputs[0] + "";
+						for( int i = 1; i < currInputs.Length; i++ ){
+							key = string.Concat( key, " ", currInputs[i] + "" );
 						}
+						key += " " + selectedAction; // add which action is
 						if( learningDic.ContainsKey( key ) ){
 							int value = learningDic[ key ];
-							value++;
-							learningDic.Remove( key );
-							learningDic.Add( key, value );
+//							if( value > 20 ) //set the upperbound for the number of learning 
+//								stopLearning = true;
+							if( !stopLearning ){
+								value++;
+								learningDic.Remove( key );
+								learningDic.Add( key, value );
+							}
 						}
 						else
-							learningDic.Add( key, 1 );													
+							learningDic.Add( key, 1 );	
 						
-						currX = nextX;
-						currY = nextY;
-						currState = nextState;
+						//train and update weight values
+						if( !stopLearning ){
+							nnArray[selectedAction].Train( currInputs );
+							nnArray[selectedAction].BackPropagate( targetQValue );
+							rm.addExp( sm.getState( currInputs ), 
+							          selectedAction, sm.getState( nextInputs ), 
+										reward, specialTransition );
+						}
+						
+						//print learned paths
+						if( !outside ){
+							nextNode = new Node ();
+							nextNode.x = nextX;
+							nextNode.y = nextY;
+							nextNode.t = time + 1;
+							nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
+							nextNode.parent = currNode;
+							currNode = nextNode;
+						}
+							
+									
+						// print all process in this turn for debug 
+						logFile.WriteLine ("t : " + time);
+						logFile.Write ("c sensor> ");
+						for( int i = 0; i < state.sensors.Length; i++ )
+							logFile.Write( currInputs[i] + " " );
+						logFile.Write ("\n");
+						
+						logFile.Write ("q-values> ");
+						for( int i = 0; i < qValues.Length; i++ )
+							logFile.Write( qValues[i] + " " );
+						logFile.Write ("\n");	
+						logFile.WriteLine (  "x " + currX + " y " + currY + " nx "  + nextX + " ny " + nextY + " a " + selectedAction + " q " + qValues[selectedAction] + " r " + reward + "\n" );
+						
+						
+						if( collision || outside ){
+							collision = false;
+							outside = false; 
+							time--;
+						}
+						else{
+							currX = nextX;
+							currY = nextY;
+						}
+//						if( replay )
+//							break;
 					}//time
+					cumulativeRSet.Add( iteration, cumulativeR );
+					lastNodes.Add ( currNode );
 					//replay
-					for( int i = 0; i < 20; i++ )
-					  rm.replay( GAMMA_DiscountFactor );
+//					for( int i = 0; i < 10; i++ )
+//					  rm.replay( GAMMA_DiscountFactor );
+
 				} // iterations
+				learnedResult.Clear();
+				foreach( Node ln in lastNodes )
+					learnedResult.Add( rrt.ReturnPath(ln, false ) );
+				
+				cumulativeRFile.WriteLine( "iteration\tcumulative_reward");
+				foreach( int key in cumulativeRSet.Keys ){
+					cumulativeRFile.WriteLine( key + "\t" + cumulativeRSet[key] );
+				}
+				cumulativeRFile.Close();
+				logFile.Close ();
 				
 				//export the ANN
 				if( exANN ){
@@ -657,19 +816,21 @@ namespace EditorArea {
 					stream.Close();
 				}
 				
-				traingRecordFile.WriteLine("about learning ... ");
+				// write the training record file 
+				traingRecordFile.WriteLine("about learning ......... ");
+				var learningList = learningDic.Keys.ToList();
+				learningList.Sort ();
 				int total = 0;
-				foreach( string key in learningDic.Keys ){
+				foreach( string key in learningList ){
 					traingRecordFile.WriteLine( key + " : " + learningDic[ key ] );
 					total++;
 				}
-				traingRecordFile.WriteLine( "total : " + total );
+				traingRecordFile.WriteLine( "......... Total " + total + "patterns" );
 				traingRecordFile.Close();
 //				file2.Close ();
 				sw.Stop();
 				Debug.Log ( "Elapsed time for training : " + System.Math.Truncate( (double)sw.ElapsedMilliseconds/60000 ) + "min " 
 				           + System.Math.Truncate( ( (double)sw.ElapsedMilliseconds % 60000 )/1000 ) + "sec" );				
-				learnedResult.Clear();
 //				foreach( Node n sult.Add( rrt.ReturnPath( n, false ) );				
 			}
 			
@@ -691,7 +852,8 @@ namespace EditorArea {
 				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
 				
 				const int sight = 3;
-				double[] allSensorInputs = new double[ sight * sight * 2 ];
+				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
+				double[] allSensorInputs = new double[ sm.allSensorInputSize ];
 				int inputSize = allSensorInputs.Length + 1; //plus bias // + actionInputs.Length;	
 				double[] inputs = new double[ inputSize ];
 				inputs[inputs.Length - 1] = 1; //bias
@@ -716,9 +878,9 @@ namespace EditorArea {
 				List<int> actionBox = new List<int>();
 				double selectedQ;
 				
-				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
 				int currX = startX, currY = startY;
-				currState = sm.addState( 0, currX, currY );
+				int direction = 1;
+				currState = sm.addState( 0, currX, currY, direction );
 				
 				currNode = new Node();
 				currNode.t = 0;
@@ -763,27 +925,49 @@ namespace EditorArea {
 					selectedAction = selectedIndex; //possibleActions[maxIndex];
 					
 					//get the X, Y after the action
-					if( selectedAction == original[0][0][0].LEFT ){
-						nextX = currX - 1;
+					if( selectedAction == original[0][0][0].FORWARD ){
+						nextX = 0;
+						nextY = 1;
+						int tempX, tempY;
+						for( int i = 0; i < direction; i++ ){
+							tempX = nextX;
+							tempY = nextY;
+							nextX = tempY;
+							nextY = -1 * tempX;
+						}
+						nextX += currX;
+						nextY += currY;
+					}
+					else if( selectedAction == original[0][0][0].BACKWARD ){
+						nextX = 0;
+						nextY = -1;
+						int tempX, tempY;
+						for( int i = 0; i < direction; i++ ){
+							tempX = nextX;
+							tempY = nextY;
+							nextX = tempY;
+							nextY = -1 * tempX;
+						}
+						nextX += currX;
+						nextY += currY;
+					}
+					else if( selectedAction == original[0][0][0].LEFT_TURN ){
+						nextX = currX;
+						nextY = currY;
+						direction = (direction + 3) % 4;
+//						time -= 1;
+					}
+					else if( selectedAction == original[0][0][0].RIGHT_TURN ){
+						nextX = currX;
+						nextY = currY;
+						direction = (direction + 1) % 4;
+//						time -= 1;
+					}
+					else if( selectedAction == original[0][0][0].STOP ){
+						nextX = currX;
 						nextY = currY;
 					}
-					else if( selectedAction == original[0][0][0].RIGHT ){
-						nextX = currX + 1;
-						nextY = currY;
-					}
-					else if( selectedAction == original[0][0][0].UPWARD ){
-						nextX = currX;
-						nextY = currY + 1;
-					}
-					else if( selectedAction == original[0][0][0].DOWNWARD ){
-						nextX = currX;
-						nextY = currY - 1;
-					}
-					else if( selectedAction == original[0][0][0].HERE ){
-						nextX = currX;
-						nextY = currY;
-					}
-					nextState = sm.addState( time + 1, nextX, nextY );
+					nextState = sm.addState( time + 1, nextX, nextY, direction );
 										
 					//for debug 
 					logFile.WriteLine ("t : " + time);
@@ -1087,7 +1271,9 @@ namespace EditorArea {
 			drawPath = EditorGUILayout.Toggle ("Draw path", drawPath);
 			drawCombatLines = EditorGUILayout.Toggle ("Draw combat lines", drawCombatLines);
 			drawByTimeSlice = EditorGUILayout.Toggle ("Draw by Time Slice", drawByTimeSlice);
-
+			drawPaths1By1 = EditorGUILayout.Toggle ("Draw paths 1 by 1", drawPaths1By1);
+			pathNum2Draw = EditorGUILayout.IntSlider ("path number to be shown", pathNum2Draw, 0, epoch - 1 );
+			
 
 			if (drawer != null) {
 				drawer.heatMap = null;
@@ -1113,7 +1299,9 @@ namespace EditorArea {
 					else
 						drawer.heatMap = heatMap;
 				}
-
+				drawer.draw1By1Path = drawPaths1By1;
+				if( drawer.draw1By1Path )
+					drawer.pathNum2draw = pathNum2Draw;					
 				drawer.drawByTimeSlice = drawByTimeSlice;
 			}
 			
@@ -1880,14 +2068,14 @@ namespace EditorArea {
 		private void getPossibleActions( ref List<int> possibleActions, int currX, int currY ){
 			possibleActions.Clear();
 			if( currX - 1 >= 0 )
-				possibleActions.Add( original[0][0][0].LEFT );
-			if( currX + 1 <= gridSize - 1 )
-				possibleActions.Add( original[0][0][0].RIGHT );
+				possibleActions.Add( original[0][0][0].FORWARD );
+//			if( currX + 1 <= gridSize - 1 )
+//				possibleActions.Add( original[0][0][0].BACKWARD );
 			if( currY - 1 >= 0 )
-				possibleActions.Add( original[0][0][0].DOWNWARD );
+				possibleActions.Add( original[0][0][0].RIGHT_TURN );
 			if( currY + 1 <= gridSize - 1 )
-				possibleActions.Add( original[0][0][0].UPWARD );
-			possibleActions.Add( original[0][0][0].HERE );
+				possibleActions.Add( original[0][0][0].LEFT_TURN );
+//			possibleActions.Add( original[0][0][0].STOP );
 		}
 	}
 }

@@ -13,11 +13,11 @@ namespace Common {
 		public bool goal = false;
 		public short cluster = 0;
 
-		public  int LEFT = 0;
-		public  int RIGHT = 1;
-		public  int DOWNWARD = 2;
-		public  int UPWARD = 3;
-		public  int HERE = 4;
+		public  int FORWARD = 0;
+		public  int BACKWARD = 1;
+		public  int RIGHT_TURN = 2;
+		public  int LEFT_TURN = 3;
+		public  int STOP = 4;
 		public double []qValues = new double[5];
 //		public double []qValues = new double[4];
 		
@@ -56,26 +56,26 @@ namespace Common {
 			if (max == 0)
 								return null;
 
-			if (max == this.qValues[LEFT]) {
+			if (max == this.qValues[FORWARD]) {
 				result.Add( x-1 );
 				result.Add ( y );
 			}
-			if (max == this.qValues[RIGHT]) {
-				result.Add ( x+1 );
-				result.Add ( y );
-			}
-			if (max == this.qValues[UPWARD]) {
+//			if (max == this.qValues[BACKWARD]) {
+//				result.Add ( x+1 );
+//				result.Add ( y );
+//			}
+			if (max == this.qValues[LEFT_TURN]) {
 				result.Add (x);
 				result.Add (y+1);
 			}
-			if (max == this.qValues[DOWNWARD]) {
+			if (max == this.qValues[RIGHT_TURN]) {
 				result.Add( x );
 				result.Add( y-1 );
 			}
-			if (max == this.qValues[HERE]) {
-				result.Add( x );
-				result.Add( y );
-			}
+//			if (max == this.qValues[STOP]) {
+//				result.Add( x );
+//				result.Add( y );
+//			}
 			
 			return result;
 			
@@ -108,23 +108,23 @@ namespace Common {
 			randomAction = actions[randomAction];
 			
 			List<int> result = new List<int>();
-			if (randomAction == this.HERE ){
-				result.Add (x);
-				result.Add (y);
-			}
-			else if (randomAction == this.LEFT) {
+//			if (randomAction == this.STOP ){
+//				result.Add (x);
+//				result.Add (y);
+//			}
+			if (randomAction == this.FORWARD) {
 				result.Add (x - 1);
 				result.Add (y);
 			} 
-			else if (randomAction == this.RIGHT) {
-				result.Add (x + 1);
-				result.Add (y);
-			} 
-			else if (randomAction == this.UPWARD) {
+//			else if (randomAction == this.BACKWARD) {
+//				result.Add (x + 1);
+//				result.Add (y);
+//			} 
+			else if (randomAction == this.LEFT_TURN) {
 				result.Add (x);
 				result.Add (y + 1);
 			} 
-			else if (randomAction == this.DOWNWARD) {
+			else if (randomAction == this.RIGHT_TURN) {
 				result.Add (x);
 				result.Add (y - 1);
 			}
@@ -144,23 +144,23 @@ namespace Common {
 				randomAction = UnityEngine.Random.Range( 0, qValues.Length );			
 
 			List<int> result = new List<int>();
-			if (randomAction == this.HERE ){
-				result.Add (x);
-				result.Add (y);
-			}
-			else if (randomAction == this.LEFT) {
+//			if (randomAction == this.STOP ){
+//				result.Add (x);
+//				result.Add (y);
+//			}
+			if (randomAction == this.FORWARD) {
 				result.Add (x - 1);
 				result.Add (y);
 			} 
-			else if (randomAction == this.RIGHT) {
-				result.Add (x + 1);
-				result.Add (y);
-			} 
-			else if (randomAction == this.UPWARD) {
+//			else if (randomAction == this.BACKWARD) {
+//				result.Add (x + 1);
+//				result.Add (y);
+//			} 
+			else if (randomAction == this.LEFT_TURN) {
 				result.Add (x);
 				result.Add (y + 1);
 			} 
-			else if (randomAction == this.DOWNWARD) {
+			else if (randomAction == this.RIGHT_TURN) {
 				result.Add (x);
 				result.Add (y - 1);
 			}

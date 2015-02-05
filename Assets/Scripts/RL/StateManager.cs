@@ -18,7 +18,18 @@ namespace Learning
 			List<State> stList = null;
 			Cell[][][] original;
 			int endX, endY, gridSize, sight;
-			
+			public double[] sensor4Block;
+			public double[] sensor4Goal;
+			public double[] goalXDirectionSensor; // +, -, 0
+			public double[] goalYDirectionSensor;
+			public	double[] playerDirectionSensor; // 0, 1, 2, 3		
+			public int allSensorInputSize;
+			public int sensor4BlockSize;
+			public int sensor4GoalSize;
+			public int goalXDirectionSensorSize;
+			public int goalYDirectionSensorSize;
+			public int playerDirectionSensorSize;
+			double[] allSensors;
 					
 		public StateManager ( Cell[][][] _original, int _endX, int _endY, int _gridSize, int _sight )
 				{
@@ -28,7 +39,20 @@ namespace Learning
 					endY = _endY;
 					gridSize = _gridSize;
 					sight = _sight;
-					
+					sensor4BlockSize = sight * sight + 1;
+					sensor4GoalSize = sensor4BlockSize;
+					goalXDirectionSensorSize = 3;
+					goalYDirectionSensorSize = 3;
+					playerDirectionSensorSize = 4;
+										
+					allSensorInputSize = sensor4BlockSize + sensor4GoalSize; // + 
+//											goalXDirectionSensorSize + goalYDirectionSensorSize + playerDirectionSensorSize;
+					sensor4Block = new double[ sensor4BlockSize ];
+					sensor4Goal = new double[ sensor4GoalSize ];
+					goalXDirectionSensor = new double[ goalXDirectionSensorSize ];
+					goalYDirectionSensor = new double[ goalYDirectionSensorSize ];
+					playerDirectionSensor = new double[ playerDirectionSensorSize ];
+					allSensors = new double[ allSensorInputSize ];	
 				}
 				
 				public State getState( double[] _inputs ){
@@ -54,23 +78,51 @@ namespace Learning
 				
 				//add an State in the list, and return it, 
 				//if it exists in the list, then just return it.
-				public State addState(  int time, int currX, int currY  ){
-					double[] sensor4Block = new double[ sight * sight ];
-					double[] sensor4Goal = new double[ sensor4Block.Length ];
+				public State addState(  int time, int currX, int currY, int direction  ){
+					
+					
+					
+					Array.Clear( sensor4Block, 0, sensor4Block.Length );
+					Array.Clear( sensor4Goal, 0, sensor4Goal.Length );
+					Array.Clear( goalXDirectionSensor, 0, goalXDirectionSensor.Length );
+					Array.Clear( goalYDirectionSensor, 0, goalYDirectionSensor.Length );
+					Array.Clear( playerDirectionSensor, 0, playerDirectionSensor.Length );
+					Array.Clear( allSensors, 0, allSensors.Length );
+			
 					int focusX, focusY;
-					for( int j = 0; j < sensor4Block.Length; j++ ){
-						focusX = currX-(sight-1)/2+(j%sight);
-						focusY = currY-(sight-1)/2+(j/sight);
+					int tempX, tempY;
+					bool block = false, goal = false;
+					
+					
+					for( int j = 0; j < sensor4Block.Length - 1; j++ ){
+						focusX = -1 * (sight - 1) / 2 + (j % sight);
+						focusY = -1 * (sight - 1) / 2 + (j / sight); // relative X and Y
+						
+						for( int i = 0; i < direction; i++ ){ //change focus X and focus Y according to player's direction
+							tempX = focusX;
+							tempY = focusY;
+							focusX = tempY;
+							focusY = -1 * tempX;
+						}
+						focusX += currX;
+						focusY += currY; // real X and Y to be checked
 						
 						if( focusX >= 0 && focusX <= gridSize-1 && focusY >= 0 && focusY <= gridSize-1 ){
 							if( original[time][focusX][focusY].blocked || original[time][focusX][focusY].seen ){
 								sensor4Block[j] = 1; // an obstacle
 								sensor4Goal[j] = 0;
+								block = true;
 							}
 							else if ( focusX == endX && focusY == endY ){
 								sensor4Goal[j] = 1; // the goal
 								sensor4Block[j] = 0;
+								goal = true;
 							}
+//							else if ( Math.Sqrt( Math.Pow( endX - focusX, 2 ) + Math.Pow( endY - focusY, 2 ) ) < 10  ){
+//								sensor4Goal[j] = 1; // the goal area
+//								sensor4Block[j] = 0;
+//								goal = true;
+//							}
 							else{
 								sensor4Block[j] = 0; // can go
 								sensor4Goal[j] = 0;
@@ -79,15 +131,47 @@ namespace Learning
 						else{
 							sensor4Block[j] = 1; // out of the map
 							sensor4Goal[j] = 0;
+							block = true;
 						}
 					} // j
-					double[] allSensors = new double[ sensor4Block.Length + sensor4Goal.Length ];
+						
+					
+					if( block == false ) // no obstacle
+						sensor4Block[ sensor4Block.Length - 1 ] = 1;
+//					else
+//						sensor4Block[ sensor4Block.Length - 1 ] = 0;
+					if( goal == false ) // no goal
+						sensor4Goal[ sensor4Goal.Length - 1 ] = 1;
+//					else
+//						sensor4Goal[ sensor4Goal.Length - 1 ] = 0;
+					
+					int xSensor = 0, ySensor = 0;
+					if( currX - endX > 0 )
+						goalXDirectionSensor[0] = 1;
+					else if( currX - endX < 0 )
+						goalXDirectionSensor[1] = 1;
+					else
+						goalXDirectionSensor[2] = 1;
+					
+					if( currY - endY > 0 )
+						goalYDirectionSensor[0] = 1;
+					else if( currY - endY < 0 )
+						goalYDirectionSensor[1] = 1;
+					else
+						goalYDirectionSensor[2] = 1;
+						
+					playerDirectionSensor[ direction ] = 1;
+			
+					
 					sensor4Block.CopyTo( allSensors, 0 );
 					sensor4Goal.CopyTo( allSensors, sensor4Block.Length );
+//					goalXDirectionSensor.CopyTo( allSensors, sensor4Block.Length + sensor4Goal.Length );
+//					goalYDirectionSensor.CopyTo( allSensors, sensor4Block.Length + sensor4Goal.Length + goalXDirectionSensor.Length );
+//					playerDirectionSensor.CopyTo( allSensors, sensor4Block.Length + sensor4Goal.Length + goalXDirectionSensor.Length + goalYDirectionSensor.Length );
 					
 					State newState = getState( allSensors );
 					if( newState == null )
-						return addState( allSensors );
+						return addState( (double[])allSensors.Clone() );
 					else
 						return newState;
 				}

@@ -29,6 +29,10 @@ namespace Learning
 				}
 				
 				public void addExp( State before, int action, State after, double reward, bool special ){
+//					if( before == null )
+//						;
+//					if( after == null )
+//						;
 					expList.Add( new Experience( before.id, action, after.id, reward, special ) );
 				}
 				
