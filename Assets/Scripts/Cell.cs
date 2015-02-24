@@ -14,12 +14,13 @@ namespace Common {
 		public short cluster = 0;
 
 		public  int FORWARD = 0;
-		public  int BACKWARD = 1;
-		public  int RIGHT_TURN = 2;
-		public  int LEFT_TURN = 3;
+		public  int BACKWARD = 3;
 		public  int STOP = 4;
-		public double []qValues = new double[5];
-//		public double []qValues = new double[4];
+		public  int RIGHT_TURN = 1;
+		public  int LEFT_TURN = 2;
+		
+
+		public double []qValues = new double[3];
 		
 		//public bool visit = false;
 				
@@ -60,10 +61,10 @@ namespace Common {
 				result.Add( x-1 );
 				result.Add ( y );
 			}
-//			if (max == this.qValues[BACKWARD]) {
-//				result.Add ( x+1 );
-//				result.Add ( y );
-//			}
+			if (max == this.qValues[BACKWARD]) {
+				result.Add ( x+1 );
+				result.Add ( y );
+			}
 			if (max == this.qValues[LEFT_TURN]) {
 				result.Add (x);
 				result.Add (y+1);
@@ -72,10 +73,10 @@ namespace Common {
 				result.Add( x );
 				result.Add( y-1 );
 			}
-//			if (max == this.qValues[STOP]) {
-//				result.Add( x );
-//				result.Add( y );
-//			}
+			if (max == this.qValues[STOP]) {
+				result.Add( x );
+				result.Add( y );
+			}
 			
 			return result;
 			
@@ -108,18 +109,18 @@ namespace Common {
 			randomAction = actions[randomAction];
 			
 			List<int> result = new List<int>();
-//			if (randomAction == this.STOP ){
-//				result.Add (x);
-//				result.Add (y);
-//			}
+			if (randomAction == this.STOP ){
+				result.Add (x);
+				result.Add (y);
+			}
 			if (randomAction == this.FORWARD) {
 				result.Add (x - 1);
 				result.Add (y);
 			} 
-//			else if (randomAction == this.BACKWARD) {
-//				result.Add (x + 1);
-//				result.Add (y);
-//			} 
+			else if (randomAction == this.BACKWARD) {
+				result.Add (x + 1);
+				result.Add (y);
+			} 
 			else if (randomAction == this.LEFT_TURN) {
 				result.Add (x);
 				result.Add (y + 1);
@@ -152,10 +153,10 @@ namespace Common {
 				result.Add (x - 1);
 				result.Add (y);
 			} 
-//			else if (randomAction == this.BACKWARD) {
-//				result.Add (x + 1);
-//				result.Add (y);
-//			} 
+			else if (randomAction == this.BACKWARD) {
+				result.Add (x + 1);
+				result.Add (y);
+			} 
 			else if (randomAction == this.LEFT_TURN) {
 				result.Add (x);
 				result.Add (y + 1);
