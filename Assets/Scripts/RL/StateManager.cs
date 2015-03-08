@@ -45,8 +45,8 @@ namespace Learning
 					goalYDirectionSensorSize = 3;
 					playerDirectionSensorSize = 4;
 										
-					allSensorInputSize = sensor4BlockSize;// + //sensor4GoalSize +  //test
-//											goalXDirectionSensorSize + goalYDirectionSensorSize + playerDirectionSensorSize;
+					allSensorInputSize = sensor4BlockSize + //sensor4GoalSize +  //test
+											goalXDirectionSensorSize + goalYDirectionSensorSize + playerDirectionSensorSize;
 					sensor4Block = new double[ sensor4BlockSize ];
 					sensor4Goal = new double[ sensor4GoalSize ];
 					goalXDirectionSensor = new double[ goalXDirectionSensorSize ];
@@ -171,9 +171,9 @@ namespace Learning
 					
 					//test
 					sensor4Block.CopyTo( allSensors, 0 );
-//					goalXDirectionSensor.CopyTo( allSensors, 0 );
-//					goalYDirectionSensor.CopyTo( allSensors, goalXDirectionSensorSize );
-//					playerDirectionSensor.CopyTo( allSensors,  goalXDirectionSensorSize + goalYDirectionSensorSize );
+					goalXDirectionSensor.CopyTo( allSensors, sensor4BlockSize );
+					goalYDirectionSensor.CopyTo( allSensors, sensor4BlockSize + goalXDirectionSensorSize );
+					playerDirectionSensor.CopyTo( allSensors, sensor4BlockSize + goalXDirectionSensorSize + goalYDirectionSensorSize );
 			
 					
 					State newState = getState( allSensors );

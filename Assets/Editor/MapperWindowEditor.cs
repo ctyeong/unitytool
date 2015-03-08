@@ -425,8 +425,8 @@ namespace EditorArea {
 			epoch = EditorGUILayout.IntSlider ("Epoch", epoch, 1, 100000 );
 			initialDirection = EditorGUILayout.IntSlider ("Initial Direction", initialDirection, 0, 3 );
 			boltzmann = EditorGUILayout.Toggle ("Use Boltzmann Distribution", boltzmann);
-			initTemperature = EditorGUILayout.Slider ("Initial Temperature", initTemperature, 0.01f, 10f);
-			finalTemperature = EditorGUILayout.Slider ("Final Temperature", finalTemperature, 0.01f, initTemperature);
+			initTemperature = EditorGUILayout.Slider ("Initial Temperature", initTemperature, 0.000001f, 10f);
+			finalTemperature = EditorGUILayout.Slider ("Final Temperature", finalTemperature, 0.000001f, initTemperature);
 			
 			if (GUILayout.Button ("Train the Q-Fuction with ANN")) {
 			
@@ -501,6 +501,8 @@ namespace EditorArea {
 				System.IO.StreamWriter cumulativeRFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\cumulative_rewards.txt" );//for debug
 				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\player_traces_learning.txt" );//for debug
 				System.IO.StreamWriter goalVisitingFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\goal_visiting_learning.txt" );//for debug
+				System.IO.StreamWriter collisionInfoFile = new System.IO.StreamWriter(@"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\collision_info.txt" );//for debug
+				
 				goalVisitingFile.WriteLine("iteration\tgoal_visiting");
 				int goalVisiting;
 				float deltaEpsilon = (1 - Epsilon_for_E_Greedy) / ( epoch - 1 );
@@ -510,6 +512,7 @@ namespace EditorArea {
 				
 				deltaTemperature = ( initTemperature - finalTemperature ) / ( epoch - 1 );
 				temperature = initTemperature + deltaTemperature;
+				collisionInfoFile.WriteLine("epoch Collision");
 				
 				//ANN training
 				for( int iteration = 0; iteration < epoch; iteration++ ){
@@ -547,7 +550,6 @@ namespace EditorArea {
 					time = 0;
 					collision = 0;
 
-					
 					for( ; time + 1 < original.Length && !isOutside && !isCollision && !isGoal; time++ ){
 												
 						//set the sensor inputs, points sensored by the player
@@ -672,8 +674,8 @@ namespace EditorArea {
 						if( !( nextX >=0 && nextX <= gridSize - 1 && nextY >= 0 && nextY <= gridSize - 1)
 					           || original[time+1][nextX][nextY].blocked  
 					        ||  original[time+1][nextX][nextY].seen ){ // out of the map, collision
-							reward = 0; 
-							specialTransition = true;
+							reward = -1; 
+							specialTransition = false;
 							replay = false;
 							isOutside = true;
 							isCollision = true;
@@ -693,60 +695,15 @@ namespace EditorArea {
 							double nextDistance = Math.Sqrt( Math.Pow( nextX - endX, 2) + Math.Pow( nextY - endY, 2 ) );
 							
 							// for goal detection
-//							if( nextDistance < currDistance )
-//								reward += 0.1;
-//							else
-//								reward -= 0.2;
+							if( nextDistance < currDistance )
+								reward += 0.7;
+							else
+								reward += 0.1;
 
 							if( selectedAction == original[0][0][0].FORWARD )
-								reward += 0.001;								
+								reward += 0.02;								
 							else if( selectedAction == original[0][0][0].BACKWARD || selectedAction == original[0][0][0].STOP || selectedAction == original[0][0][0].RIGHT_TURN || selectedAction == original[0][0][0].LEFT_TURN )
-								reward -= 0.001;
-							
-							// 0 1 2 : goal x, 3 4 5 : goal y, 6 7 8 9 : direction of the player
-							
-//							//access to the goal's X 
-//							if( currInputs[0] == 1 || currInputs[1] == 1 ){
-//								if(  nextInputs[2] == 1 )
-//									reward += 1;
-//							}
-//							
-//							//access to the goal's Y
-//							if( currInputs[3] == 1 || currInputs[4] == 1 ){
-//								if(  nextInputs[5] == 1 )
-//									reward += 1;
-//							}
-
-							//continuous-type rewards
-//							double currNoBlock = currInputs[sm.sensor4Block.Length-1];
-//							double nextNoBlock = nextInputs[sm.sensor4Block.Length-1];
-////							double currNoGoal = currInputs[ sm.sensor4Block.Length + sm.sensor4Goal.Length -1  ];
-////							double nextNoGoal = nextInputs[ sm.sensor4Block.Length + sm.sensor4Goal.Length -1  ];
-//								
-//							//avoid some blocks
-//							if( currNoBlock == 0 && nextNoBlock == 1 ){ 
-//								reward += 0.1;
-//								specialTransition = false;
-//								replay = false;
-//							}
-//							int currBlocks = 0, nextBlocks = 0;
-//							for( int k = 0; k < sm.sensor4BlockSize; k++ ){
-//								if( currInputs[k] == 1 )
-//									currBlocks++;
-//								if( nextInputs[k] == 1 )
-//									nextBlocks++;
-//							}
-//							if( nextBlocks < currBlocks ){
-//								reward += 0.3;
-//								specialTransition = false;
-//								replay = false;
-//							}
-							//nearer to some blocks
-//							if ( currNoBlock == 1 && nextNoBlock == 0){
-//								reward -= 0.1;
-//								specialTransition = false;
-//								replay = false;
-//							}
+								reward -= 0.015;							
 						}
 						cumulativeR += reward;
 						
@@ -812,6 +769,8 @@ namespace EditorArea {
 							isOutside = false; 
 							time--;
 							collision++;
+							//currX = startX;
+							//currY = startY;
 						}
 						else{
 							currX = nextX;
@@ -821,7 +780,6 @@ namespace EditorArea {
 //						if( replay )
 //							break;
 					}//time
-					logFile.WriteLine( "# of Collisions : " + collision + "\n\n" );
 					
 					//set the cumulative R value
 					if( isGoal ){
@@ -832,6 +790,8 @@ namespace EditorArea {
 					
 					lastNodes.Add ( currNode );
 					goalVisitingFile.WriteLine("#" + iteration + "\t" + goalVisiting );
+					collisionInfoFile.WriteLine( iteration + " " + collision + "\n\n" );
+					
 					//replay
 //					for( int i = 0; i < 10; i++ )
 //					  rm.replay( GAMMA_DiscountFactor );
@@ -848,6 +808,7 @@ namespace EditorArea {
 				cumulativeRFile.Close();
 				logFile.Close ();
 				goalVisitingFile.Close();
+				collisionInfoFile.Close();
 				//export the ANN
 				if( exANN ){
 					IFormatter formatter = new BinaryFormatter();
