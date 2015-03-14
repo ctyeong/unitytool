@@ -43,6 +43,7 @@ namespace EditorArea {
 		
 		// Fixed values
 		private Color orange = new Color (1.0f, 0.64f, 0f, 1f), transparent = new Color (1f, 1f, 1f, 0f);
+		private Color blue = new Color (0f, 0f, 1f, 1f);
 		
 		public void Start () {
 			hideFlags = HideFlags.HideInInspector;
@@ -58,6 +59,8 @@ namespace EditorArea {
 					if (drawFoVOnly) {
 						if (c != null && c.seen)
 							Gizmos.color = orange;
+//						else if( c != null && c.sight )
+//							Gizmos.color = blue;
 						else
 							Gizmos.color = transparent;
 					} else {
@@ -108,6 +111,8 @@ namespace EditorArea {
 						if (drawFoVOnly) {
 							if (c.seen)
 								Gizmos.color = orange;
+							else if( c.sight )
+								Gizmos.color = blue;
 							else
 								Gizmos.color = transparent;
 						} else {
@@ -117,6 +122,8 @@ namespace EditorArea {
 								Gizmos.color = Color.red;
 							else if (c.seen)
 								Gizmos.color = orange;
+							else if( c.sight )
+								Gizmos.color = blue;
 							else if (c.noisy)
 								Gizmos.color = Color.yellow;
 							else if (c.waypoint)

@@ -7,6 +7,7 @@ namespace Common {
 	public class Cell {
 		public bool blocked = false;
 		public bool seen = false;
+		public bool sight = false;
 		public bool safe = false;
 		public bool noisy = false;
 		public bool waypoint = false;
@@ -29,6 +30,7 @@ namespace Common {
 			copy.blocked = this.blocked;
 			copy.seen = this.seen;
 			copy.safe = this.safe;
+			copy.sight = this.sight;
 			copy.noisy = this.noisy;
 			copy.waypoint = this.waypoint;
 			copy.goal = this.goal;

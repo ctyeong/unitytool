@@ -29,8 +29,8 @@ namespace EditorArea {
 		// Parameters with default values
 		public static int timeSamples = 100, episodes = 3600, initialDirection = 1, epoch = 50, pathNum2Draw = 0, iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
 		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, learnedData = true, allBranches = true, drawByTimeSlice = false, drawPaths1By1 = true;
-		private static float finalTemperature = 0.1f, initTemperature = 1.0f, stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.6f, ALPHA_LearningRate = 0.5f, Epsilon_for_E_Greedy = 0.4f ;
-		private static int randomSeed = -1;
+		private static float goalAreaRadius = 5, finalTemperature = 0.1f, initTemperature = 1.0f, stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.6f, ALPHA_LearningRate = 0.5f, Epsilon_for_E_Greedy = 0.4f ;
+		private static int randomSeed = -1, sight = 5;
 
 		// Computed parameters
 		private static int[,] heatMap, deathHeatMap, combatHeatMap;
@@ -321,7 +321,7 @@ namespace EditorArea {
 								}
 								else //simple movement
 									reward = -1;
-								maxQ = nextCell.getMaxQ();						
+									maxQ = nextCell.getMaxQ();						
 							}
 							// update the Q-Function
 							if( actionNumber == currCell.FORWARD ) //left
@@ -422,11 +422,14 @@ namespace EditorArea {
 			exANN = EditorGUILayout.Toggle ("Export ANN", exANN);
 			annFile = @"C:\Users\ctyeong\Dropbox\StealthGameResearch\trained_agent\" + EditorGUILayout.TextField( "ann" );
 			
+			sight = EditorGUILayout.IntSlider ("Sight", sight, 3, 11 );
 			epoch = EditorGUILayout.IntSlider ("Epoch", epoch, 1, 100000 );
 			initialDirection = EditorGUILayout.IntSlider ("Initial Direction", initialDirection, 0, 3 );
 			boltzmann = EditorGUILayout.Toggle ("Use Boltzmann Distribution", boltzmann);
 			initTemperature = EditorGUILayout.Slider ("Initial Temperature", initTemperature, 0.000001f, 10f);
 			finalTemperature = EditorGUILayout.Slider ("Final Temperature", finalTemperature, 0.000001f, initTemperature);
+			goalAreaRadius = EditorGUILayout.Slider ("Goal Area Radius", goalAreaRadius, 0, 10);
+			
 			
 			if (GUILayout.Button ("Train the Q-Fuction with ANN")) {
 			
@@ -443,7 +446,6 @@ namespace EditorArea {
 				endX = (int)((end.transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
 				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
 				
-				const int sight = 3;
 				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
 				double[] allSensorInputs = new double[ sm.allSensorInputSize ]; //+1 means plus not visible, 2 * 3 means direction to the end, + 5 is direction
 				int inputSize = allSensorInputs.Length + 1; //plus bias // + actionInputs.Length;	
@@ -514,31 +516,14 @@ namespace EditorArea {
 				temperature = initTemperature + deltaTemperature;
 				collisionInfoFile.WriteLine("epoch Collision");
 				
+				int toleranceLimit = original.Length / 50; // how many times would collisions be allowed?
+				int tolerance = 0;
+				
 				//ANN training
 				for( int iteration = 0; iteration < epoch; iteration++ ){
 					sm.reset();
 					rm.reset();
-					
-					goalVisiting = 0;
-					currX = startX;
-					currY = startY;
-					currNode = new Node();
-					currNode.x = currX;
-					currNode.y = currY;
-					currNode.t = 0;
-					currNode.cell = original[0][currNode.x][currNode.y];
-//					while( true ){
-//						currX = UnityEngine.Random.Range( 0, gridSize );
-//						currY = UnityEngine.Random.Range( 0, gridSize );
-//						if( !(original[0][currX][currY].seen || original[0][currX][currY].blocked) )
-//							break;
-//					}
-					
-					direction = initialDirection;//1;//temp //UnityEngine.Random.Range( 0, 4 );					
-					cumulativeR = 0;
-					isCollision = false;
-					isOutside = false;
-					isGoal = false;
+
 					epsilon += deltaEpsilon;
 					temperature -= deltaTemperature;
 					
@@ -546,10 +531,25 @@ namespace EditorArea {
 						logFile.WriteLine( "\n#" + iteration + " temperature : " + temperature );
 					else
 						logFile.WriteLine( "\n#" + iteration + " epsilon : " + epsilon );
-					
+															
+					currX = startX;
+					currY = startY;
+					currNode = new Node();
+					currNode.x = currX;
+					currNode.y = currY;
+					currNode.t = 0;
+					currNode.cell = original[0][currNode.x][currNode.y];
+
+					direction = initialDirection;
 					time = 0;
 					collision = 0;
-
+					goalVisiting = 0;
+					cumulativeR = 0;
+					isCollision = false;
+					isOutside = false;
+					isGoal = false;
+					tolerance = 0;
+					
 					for( ; time + 1 < original.Length && !isOutside && !isCollision && !isGoal; time++ ){
 												
 						//set the sensor inputs, points sensored by the player
@@ -669,8 +669,8 @@ namespace EditorArea {
 						state.sensors.CopyTo( nextInputs, 0 );
 						
 						reward = 0;
-						// get the reward
-						// collision
+						// define the Reward Function !
+						// collision or out of the map
 						if( !( nextX >=0 && nextX <= gridSize - 1 && nextY >= 0 && nextY <= gridSize - 1)
 					           || original[time+1][nextX][nextY].blocked  
 					        ||  original[time+1][nextX][nextY].seen ){ // out of the map, collision
@@ -680,30 +680,32 @@ namespace EditorArea {
 							isOutside = true;
 							isCollision = true;
 						}
-						// visiting the end point
-						else if( nextX == endX && nextY == endY ){ 
-							reward = 1;
-							specialTransition = true;
-							replay = false;
-							isGoal = true;
-							goalVisiting++;
-						}
-						// no collision
+						// a meaningful movement
 						else{
-							specialTransition = false;
-							double currDistance = Math.Sqrt( Math.Pow( currX - endX, 2) + Math.Pow( currY - endY, 2 ) );
 							double nextDistance = Math.Sqrt( Math.Pow( nextX - endX, 2) + Math.Pow( nextY - endY, 2 ) );
-							
-							// for goal detection
-							if( nextDistance < currDistance )
-								reward += 0.7;
-							else
-								reward += 0.1;
-
-							if( selectedAction == original[0][0][0].FORWARD )
-								reward += 0.02;								
-							else if( selectedAction == original[0][0][0].BACKWARD || selectedAction == original[0][0][0].STOP || selectedAction == original[0][0][0].RIGHT_TURN || selectedAction == original[0][0][0].LEFT_TURN )
-								reward -= 0.015;							
+							// visiting the end point
+							if( nextDistance <= goalAreaRadius ){ //nextX == endX && nextY == endY ){ 
+								reward = 1;
+								specialTransition = true;
+								replay = false;
+								isGoal = true;
+								goalVisiting++;
+							}
+							// at a normal state
+							else{
+								double currDistance = Math.Sqrt( Math.Pow( currX - endX, 2) + Math.Pow( currY - endY, 2 ) );
+								specialTransition = false;								
+								// for goal detection
+								if( nextDistance < currDistance )
+									reward += 0.65;
+								else
+									reward += 0.1;
+	
+								if( selectedAction == original[0][0][0].FORWARD )
+									reward += 0.02;								
+								else if( selectedAction == original[0][0][0].BACKWARD || selectedAction == original[0][0][0].STOP || selectedAction == original[0][0][0].RIGHT_TURN || selectedAction == original[0][0][0].LEFT_TURN )
+									reward -= 0.015;							
+							}
 						}
 						cumulativeR += reward;
 						
@@ -747,7 +749,7 @@ namespace EditorArea {
 										reward, specialTransition );
 						}
 						
-						//print learned paths
+						// make nodes to print learned paths
 						if( !isOutside && !isCollision ){
 							nextNode = new Node ();
 							nextNode.x = nextX;
@@ -756,26 +758,26 @@ namespace EditorArea {
 							nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
 							nextNode.parent = currNode;
 							currNode = nextNode;
+							currX = nextX;
+							currY = nextY;
+							tolerance = 0;
 						}
-							
+						//retry training even if collision occurred
+						else{
+							collision++;
+							tolerance++;
+							if( collision < toleranceLimit ){
+								isCollision = false;
+								isOutside = false; 
+								time--;
+							}
+							//currX = startX;
+							//currY = startY;
+						}
 									
 						// print the rest of the process in this turn for debug 
 						logTexts += " nx "  + nextX + " ny " + nextY + " r " + reward + "\n" ;
 						logFile.WriteLine ( logTexts );
-						
-						//retry training even if collision occurred
-						if( isCollision || isOutside ){
-							isCollision = false;
-							isOutside = false; 
-							time--;
-							collision++;
-							//currX = startX;
-							//currY = startY;
-						}
-						else{
-							currX = nextX;
-							currY = nextY;
-						}
 
 //						if( replay )
 //							break;
@@ -856,7 +858,7 @@ namespace EditorArea {
 				endX = (int)((end.transform.position.x - floor.collider.bounds.min.x) / SpaceState.Editor.tileSize.x);
 				endY = (int)((end.transform.position.z - floor.collider.bounds.min.z) / SpaceState.Editor.tileSize.y);
 				
-				const int sight = 3;
+//				const int sight = 3;
 				StateManager sm = new StateManager( original, endX, endY, gridSize, sight);
 				double[] allSensorInputs = new double[ sm.allSensorInputSize ];
 				int inputSize = allSensorInputs.Length + 1; //plus bias // + actionInputs.Length;	
@@ -930,7 +932,9 @@ namespace EditorArea {
 					}						
 					selectedAction = selectedIndex; //possibleActions[maxIndex];
 					
-					if( currX == endX && currY == endY )
+					double distance2Goal = Math.Sqrt( Math.Pow( endX - currX, 2) + Math.Pow ( endY - currY, 2 ) );
+					
+					if( distance2Goal <= goalAreaRadius ) //currX == endX && currY == endY )
 						selectedAction = original[0][0][0].RIGHT_TURN;
 						
 					
@@ -989,7 +993,7 @@ namespace EditorArea {
 					for( int i = 0; i < qValues.Length; i++ )
 						logFile.Write( qValues[i] + " " );
 					logFile.Write ("\n");	
-					logFile.WriteLine (  "x " + currX + " y " + currY + " nx "  + nextX + " ny " + nextY + " a " + selectedAction + " q " + qValues[selectedAction] + "\n" );
+					logFile.WriteLine (  "x " + currX + " y " + currY + " nx "  + nextX + " ny " + nextY + " d " + direction + " a " + selectedAction + " q " + qValues[selectedAction] + "\n" );
 						
 					if( (nextX >= 0 && nextY >= 0 && nextX <= gridSize - 1 && nextY <= gridSize - 1 )){
 						nextNode = new Node();
@@ -999,12 +1003,26 @@ namespace EditorArea {
 						nextNode.cell = original[nextNode.t][nextNode.x][nextNode.y];
 						nextNode.parent = currNode;
 						currNode = nextNode;
-					}													
+					}
+					
+					// draw the sight of the player 
+					for( int j = 0; j < sight * sight; j++ ){
+						int focusX = -1 * (sight - 1) / 2 + (j % sight);
+						int focusY = -1 * (sight - 1) / 2 + (j / sight); // relative X and Y
+						
+						focusX += currX;
+						focusY += currY; // real X and Y to be checked
+						
+						if( focusX >= 0 && focusX <= gridSize-1 && focusY >= 0 && focusY <= gridSize-1 ){
+							//obstacles
+							original[time][focusX][focusY].sight = true;
+						}
+					} // j
 					
 					currX = nextX;
 					currY = nextY;
 					currState = nextState;
-								
+					
 				}//time
 				logFile.Close();
 				lastNodes.Add( currNode );	
@@ -1012,7 +1030,7 @@ namespace EditorArea {
 				learnedResult.Clear();
 				foreach( Node n in lastNodes )
 					learnedResult.Add( rrt.ReturnPath( n, false ) );
-				
+//				drawer.fullMap = original;
 			}
 			EditorGUILayout.LabelField ("");
 			#endregion
@@ -2028,7 +2046,6 @@ namespace EditorArea {
 					pos += (SpaceState.Editor.enemies [i].positions [t + 1] - SpaceState.Editor.enemies [i].positions [t]) * diff;
 					//rot = Quaternion.Lerp(rot, SpaceState.Editor.enemies[i].rotations[t+1], diff);
 				}
-				
 				SpaceState.Editor.enemies [i].transform.position = pos;
 				SpaceState.Editor.enemies [i].transform.rotation = rot;
 			}
