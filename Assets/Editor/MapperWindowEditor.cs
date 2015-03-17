@@ -27,9 +27,9 @@ namespace EditorArea {
 		public static List<Path> paths = new List<Path> (), deaths = new List<Path>();
 
 		// Parameters with default values
-		public static int timeSamples = 100, episodes = 3600, initialDirection = 1, epoch = 50, pathNum2Draw = 0, iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
+		public static int timeSamples = 1000, episodes = 3600, initialDirection = 1, epoch = 500, pathNum2Draw = 0, iterations4Learning = 50, attemps = 25000, iterations = 1, gridSize = 60, ticksBehind = 0;
 		private static bool drawMap = true, drawNeverSeen = false, drawHeatMap = false, drawHeatMap3d = false, drawDeathHeatMap = false, drawDeathHeatMap3d = false, drawCombatHeatMap = false, drawPath = true, smoothPath = false, drawFoVOnly = false, drawCombatLines = false, simulateCombat = false, learnedData = true, allBranches = true, drawByTimeSlice = false, drawPaths1By1 = true;
-		private static float goalAreaRadius = 5, finalTemperature = 0.1f, initTemperature = 1.0f, stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.6f, ALPHA_LearningRate = 0.5f, Epsilon_for_E_Greedy = 0.4f ;
+		private static float goalAreaRadius = 5, finalTemperature = 0.05f, initTemperature = 1.0f, stepSize = 1 / 10f, crazySeconds = 5f, playerDPS = 10, GAMMA_DiscountFactor = 0.6f, ALPHA_LearningRate = 0.5f, Epsilon_for_E_Greedy = 0.4f ;
 		private static int randomSeed = -1, sight = 5;
 
 		// Computed parameters
@@ -460,7 +460,7 @@ namespace EditorArea {
 				
 				double[] qValues = new double[ numANN ];
 				double[] targetQValue = new double[1];
-				int direction = 0, nextDirection = 0, collision, time, currX, currY, nextX = 0, nextY = 0, selectedAction, selectedIndex, numMaxAction, numOthers, numEach;
+				int currDirection = 0, nextDirection = 0, collision, time, currX, currY, nextX = 0, nextY = 0, selectedAction, selectedIndex, numMaxAction, numOthers, numEach;
 				Cell nextCell = null;
 				Node currNode = null, nextNode = null;
 				List<Node> lastNodes = new List<Node>();
@@ -540,7 +540,7 @@ namespace EditorArea {
 					currNode.t = 0;
 					currNode.cell = original[0][currNode.x][currNode.y];
 
-					direction = initialDirection;
+					currDirection = initialDirection;
 					time = 0;
 					collision = 0;
 					goalVisiting = 0;
@@ -553,7 +553,7 @@ namespace EditorArea {
 					for( ; time + 1 < original.Length && !isOutside && !isCollision && !isGoal; time++ ){
 												
 						//set the sensor inputs, points sensored by the player
-						state = sm.addState( time, currX, currY, direction );
+						state = sm.addState( time, currX, currY, currDirection );
 						state.sensors.CopyTo( currInputs, 0 ); // sensors + bias = inputs
 													
 						//select the maximum Q-Value and its index, greedy policy
@@ -619,7 +619,7 @@ namespace EditorArea {
 						for( int i = 0; i < qValues.Length; i++ )
 							logTexts += qValues[i] + "("+ probOfActions[i] + "%) ";
 						logTexts += "\n";	
-						logTexts +=  "x " + currX + " y " + currY + " d " + direction + " a " + selectedAction ;				
+						logTexts +=  "x " + currX + " y " + currY + " d " + currDirection + " a " + selectedAction ;				
 						
 						//get the target Q
 						//get the X, Y after the action
@@ -627,7 +627,7 @@ namespace EditorArea {
 							nextX = 0;
 							nextY = 1;
 							int tempX, tempY;
-							for( int i = 0; i < direction; i++ ){
+							for( int i = 0; i < currDirection; i++ ){
 								tempX = nextX;
 								tempY = nextY;
 								nextX = tempY;
@@ -640,7 +640,7 @@ namespace EditorArea {
 							nextX = 0;
 							nextY = -1;
 							int tempX, tempY;
-							for( int i = 0; i < direction; i++ ){
+							for( int i = 0; i < currDirection; i++ ){
 								tempX = nextX;
 								tempY = nextY;
 								nextX = tempY;
@@ -652,20 +652,20 @@ namespace EditorArea {
 						else if( selectedAction == original[0][0][0].LEFT_TURN ){
 							nextX = currX;
 							nextY = currY;
-							direction = (direction + 3) % 4;
+							nextDirection = (currDirection + 3) % 4;
 //							time -= 1;
 						}
 						else if( selectedAction == original[0][0][0].RIGHT_TURN ){
 							nextX = currX;
 							nextY = currY;
-							direction = (direction + 1) % 4;
+							nextDirection = (currDirection + 1) % 4;
 //							time -= 1;
 						}
 						else if( selectedAction == original[0][0][0].STOP ){
 							nextX = currX;
 							nextY = currY;
 						}
-						state = sm.addState( time + 1, nextX, nextY, direction );
+						state = sm.addState( time + 1, nextX, nextY, nextDirection );
 						state.sensors.CopyTo( nextInputs, 0 );
 						
 						reward = 0;
@@ -702,9 +702,9 @@ namespace EditorArea {
 									reward += 0.1;
 	
 								if( selectedAction == original[0][0][0].FORWARD )
-									reward += 0.02;								
+									reward += 0.01;								
 								else if( selectedAction == original[0][0][0].BACKWARD || selectedAction == original[0][0][0].STOP || selectedAction == original[0][0][0].RIGHT_TURN || selectedAction == original[0][0][0].LEFT_TURN )
-									reward -= 0.015;							
+									reward -= 0.01;							
 							}
 						}
 						cumulativeR += reward;
@@ -760,13 +760,15 @@ namespace EditorArea {
 							currNode = nextNode;
 							currX = nextX;
 							currY = nextY;
+							currDirection = nextDirection;
 							tolerance = 0;
 						}
 						//retry training even if collision occurred
 						else{
 							collision++;
 							tolerance++;
-							if( collision < toleranceLimit ){
+//							if( tolerance < toleranceLimit ){
+							if( collision < 50 ){
 								isCollision = false;
 								isOutside = false; 
 								time--;
