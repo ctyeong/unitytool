@@ -420,7 +420,8 @@ namespace EditorArea {
 			
 			imANN = EditorGUILayout.Toggle ("Import ANN", imANN);
 			exANN = EditorGUILayout.Toggle ("Export ANN", exANN);
-			annFile = @"C:\Dropbox\StealthGameResearch\trained_agent\" + EditorGUILayout.TextField( "ann" );
+//			annFile = @"C:\Dropbox\StealthGameResearch\trained_agent\" + EditorGUILayout.TextField( "ann" );
+			annFile = @"trained_agent\" + EditorGUILayout.TextField( "ann" );
 			
 			sight = EditorGUILayout.IntSlider ("Sight", sight, 3, 11 );
 			epoch = EditorGUILayout.IntSlider ("Epoch", epoch, 1, 100000 );
@@ -499,11 +500,16 @@ namespace EditorArea {
 				ReplayManager rm = new ReplayManager( ref nnArray, ref sm );
 				Dictionary< int, double > cumulativeRSet = new Dictionary< int, double >();
 								
-				System.IO.StreamWriter traingRecordFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\training_records.txt" );//for debug
-				System.IO.StreamWriter cumulativeRFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\cumulative_rewards.txt" );//for debug
-				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\player_traces_learning.txt" );//for debug
-				System.IO.StreamWriter goalVisitingFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\goal_visiting_learning.txt" );//for debug
-				System.IO.StreamWriter collisionInfoFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\collision_info.txt" );//for debug
+//				System.IO.StreamWriter traingRecordFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\training_records.txt" );//for debug
+//				System.IO.StreamWriter cumulativeRFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\cumulative_rewards.txt" );//for debug
+//				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\player_traces_learning.txt" );//for debug
+//				System.IO.StreamWriter goalVisitingFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\goal_visiting_learning.txt" );//for debug
+//				System.IO.StreamWriter collisionInfoFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\collision_info.txt" );//for debug
+				System.IO.StreamWriter traingRecordFile = new System.IO.StreamWriter(@"training_records.txt" );//for debug
+				System.IO.StreamWriter cumulativeRFile = new System.IO.StreamWriter(@"cumulative_rewards.txt" );//for debug
+				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"player_traces_learning.txt" );//for debug
+				System.IO.StreamWriter goalVisitingFile = new System.IO.StreamWriter(@"goal_visiting_learning.txt" );//for debug
+				System.IO.StreamWriter collisionInfoFile = new System.IO.StreamWriter(@"collision_info.txt" );//for debug
 				
 				goalVisitingFile.WriteLine("iteration\tgoal_visiting");
 				int goalVisiting;
@@ -874,7 +880,8 @@ namespace EditorArea {
 				stream.Close();
 				
 				State currState = null, nextState = null;
-				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\player_traces.txt" );//for debug
+//				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"C:\Dropbox\StealthGameResearch\trained_agent\player_traces.txt" );//for debug
+				System.IO.StreamWriter logFile = new System.IO.StreamWriter(@"trained_agent\player_traces.txt" );//for debug
 				
 				
 				int numANN = original[0][0][0].qValues.Length;			
